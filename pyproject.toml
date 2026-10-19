@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/playlistbot"]
+
+[project]
+name = "playlist-bot"
+version = "0.1.0"
+description = "Discord bot that collects music links and creates cross-platform playlists"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+  "discord.py>=2.5",
+  "fastapi[all]>=0.115",
+  "httpx[http2]>=0.28",
+  "aiosqlite>=0.20",
+  "yt-dlp>=2024.10.7",
+  "pydantic>=2.9",
+  "backoff>=2.2",
+  "jinja2>=3.1",
+  "beautifulsoup4>=4.12",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "pytest-cov>=5.0",
+  "ruff>=0.8",
+  "httpx>=0.28",
+  "respx>=0.21",
+  "aioduckdb>=0.0.2",
+  "playwright>=1.48",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "S", "T20"]
+ignore = ["S101", "S104", "S105", "S106", "S107", "S110", "S305"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["src/playlistbot"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

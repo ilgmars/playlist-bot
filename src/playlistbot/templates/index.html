@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Playlist Bot</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+    .song-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem; margin: 0.5rem 0; }
+    .song-header { display: flex; gap: 1rem; align-items: baseline; }
+    .song-title { font-size: 1.1rem; }
+    .song-artist { color: #666; font-size: 0.9rem; }
+    .song-time { color: #888; font-size: 0.8rem; margin-left: auto; }
+    .song-links a { margin-right: 0.5rem; font-size: 0.8rem; }
+    .empty { color: #999; text-align: center; padding: 2rem; }
+    h1 { font-size: 1.5rem; }
+    .refresh-note { color: #888; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <h1>Playlist Bot</h1>
+  <p class="refresh-note">Latest songs collected from Discord — newest first.</p>
+  <div id="songs">
+    {% for song in songs %}
+    <article class="song-card">
+      <div class="song-header">
+        <strong class="song-title">{{ song.title }}</strong>
+        <span class="song-artist">{{ song.artist }}</span>
+        <time class="song-time">{{ song.created_at }}</time>
+      </div>
+      <div class="song-links">
+        {% for link in song.links %}
+        <a href="{{ link.original_url }}" target="_blank" rel="noopener">{{ link.platform|capitalize }}</a>
+        {% endfor %}
+      </div>
+    </article>
+    {% endfor %}
+    {% if not songs %}
+    <p class="empty">No songs collected yet. Post a music link in Discord!</p>
+    {% endif %}
+  </div>
+</body>
+</html>
