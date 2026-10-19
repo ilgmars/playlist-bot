@@ -17,6 +17,13 @@ class Platform(StrEnum):
     SOUND_CLOUD = "sound_cloud"
     BANDCAMP = "bandcamp"
     DEEZER = "deezer"
+    TIDAL = "tidal"
+    AMAZON_MUSIC = "amazon_music"
+    QOBUZ = "qobuz"
+    NAPSTER = "napster"
+    PANDORA = "pandora"
+    YANDEX_MUSIC = "yandex_music"
+    ANGHAMI = "anghami"
     GENERIC = "generic"
 
 

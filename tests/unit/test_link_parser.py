@@ -103,6 +103,56 @@ class TestBandcampLinks:
         assert link.platform == Platform.BANDCAMP
 
 
+class TestNewPlatforms:
+    def test_deezer_track(self):
+        link = parse_link("https://www.deezer.com/track/123456789")
+        assert link is not None
+        assert link.platform == Platform.DEEZER
+        assert link.track_id == "123456789"
+
+    def test_deezer_album(self):
+        link = parse_link("https://www.deezer.com/album/987654321")
+        assert link is not None
+        assert link.platform == Platform.DEEZER
+        assert link.track_id == "987654321"
+
+    def test_tidal_track(self):
+        link = parse_link("https://listen.tidal.com/track/123456789")
+        assert link is not None
+        assert link.platform == Platform.TIDAL
+        assert link.track_id == "123456789"
+
+    def test_amazon_music_track(self):
+        link = parse_link("https://music.amazon.com/track/ABC123DEF")
+        assert link is not None
+        assert link.platform == Platform.AMAZON_MUSIC
+
+    def test_qobuz_track(self):
+        link = parse_link("https://play.qobuz.com/track/abc-def-ghi")
+        assert link is not None
+        assert link.platform == Platform.QOBUZ
+
+    def test_napster_track(self):
+        link = parse_link("https://us.napster.com/track/xyz-789")
+        assert link is not None
+        assert link.platform == Platform.NAPSTER
+
+    def test_pandora_track(self):
+        link = parse_link("https://www.pandora.com/track/abc-123")
+        assert link is not None
+        assert link.platform == Platform.PANDORA
+
+    def test_yandex_music_track(self):
+        link = parse_link("https://music.yandex.ru/track/123456789")
+        assert link is not None
+        assert link.platform == Platform.YANDEX_MUSIC
+
+    def test_anghami_track(self):
+        link = parse_link("https://play.anghami.com/song/abc-def")
+        assert link is not None
+        assert link.platform == Platform.ANGHAMI
+
+
 class TestNonMusicLinks:
     def test_non_music_url(self):
         link = parse_link("https://google.com/search?q=music")

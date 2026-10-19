@@ -251,6 +251,156 @@ async def fetch_bandcamp_metadata(url: str) -> TrackInfo | None:
     return None
 
 
+async def fetch_deezer_metadata(url: str) -> TrackInfo | None:
+    """Use Deezer's public API (no auth needed for basic track info)."""
+    import re
+    m = re.search(r"/track/(\d+)", url)
+    if not m:
+        return None
+    track_id = m.group(1)
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"https://api.deezer.com/track/{track_id}")
+        if resp.status_code == 200:
+            data = resp.json()
+            return TrackInfo(
+                title=data.get("title", "Unknown"),
+                artist=data.get("artist", {}).get("name", "Unknown"),
+                album=data.get("album", {}).get("title"),
+                duration_ms=data.get("duration", 0) * 1000,
+                isrc=data.get("isrc"),
+                source_url=url,
+                source_platform=Platform.DEEZER,
+            )
+    except Exception as e:
+        log.debug("Deezer API failed: %s", e)
+    return TrackInfo(
+        title="Unknown (Deezer)",
+        artist="Unknown",
+        source_url=url,
+        source_platform=Platform.DEEZER,
+    )
+
+
+async def fetch_tidal_metadata(url: str) -> TrackInfo | None:
+    """Tidal requires OAuth; fallback to title scrape."""
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; PlaylistBot/0.1)"}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=headers, follow_redirects=True)
+        if resp.status_code != 200:
+            return None
+        text = resp.text
+    except Exception as e:
+        log.debug("Tidal request failed: %s", e)
+        return None
+
+    # Try to extract from page title
+    m = re.search(r"<title>([^<]+)</title>", text, re.IGNORECASE)
+    if m:
+        raw = m.group(1)
+        parts = raw.split(" - ", 1)
+        if len(parts) == 2:
+            return TrackInfo(
+                title=parts[0].strip(),
+                artist=parts[1].strip(),
+                source_url=url,
+                source_platform=Platform.TIDAL,
+            )
+    return TrackInfo(
+        title="Unknown (Tidal)",
+        artist="Unknown",
+        source_url=url,
+        source_platform=Platform.TIDAL,
+    )
+
+
+async def fetch_amazon_music_metadata(url: str) -> TrackInfo | None:
+    """Amazon Music requires auth; fallback."""
+    return TrackInfo(
+        title="Unknown (Amazon Music)",
+        artist="Unknown",
+        source_url=url,
+        source_platform=Platform.AMAZON_MUSIC,
+    )
+
+
+async def fetch_qobuz_metadata(url: str) -> TrackInfo | None:
+    """Qobuz requires OAuth; fallback."""
+    return TrackInfo(
+        title="Unknown (Qobuz)",
+        artist="Unknown",
+        source_url=url,
+        source_platform=Platform.QOBUZ,
+    )
+
+
+async def fetch_napster_metadata(url: str) -> TrackInfo | None:
+    """Napster requires OAuth; fallback."""
+    return TrackInfo(
+        title="Unknown (Napster)",
+        artist="Unknown",
+        source_url=url,
+        source_platform=Platform.NAPSTER,
+    )
+
+
+async def fetch_pandora_metadata(url: str) -> TrackInfo | None:
+    """Pandora US-only; fallback."""
+    return TrackInfo(
+        title="Unknown (Pandora)",
+        artist="Unknown",
+        source_url=url,
+        source_platform=Platform.PANDORA,
+    )
+
+
+async def fetch_yandex_music_metadata(url: str) -> TrackInfo | None:
+    """Yandex Music public page scrape."""
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; PlaylistBot/0.1)"}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=headers, follow_redirects=True)
+        if resp.status_code != 200:
+            return None
+        text = resp.text
+    except Exception as e:
+        log.debug("Yandex Music request failed: %s", e)
+        return None
+
+    # Yandex embeds track data in JSON
+    m = re.search(r"track\s*:\s*(\{.+?\})", text, re.DOTALL)
+    if m:
+        try:
+            data = json.loads(m.group(1))
+            return TrackInfo(
+                title=data.get("title", "Unknown"),
+                artist=data.get("artists", [{}])[0].get("name", "Unknown"),
+                album=data.get("albums", [{}])[0].get("title"),
+                duration_ms=data.get("durationMs"),
+                source_url=url,
+                source_platform=Platform.YANDEX_MUSIC,
+            )
+        except Exception:
+            pass
+    return TrackInfo(
+        title="Unknown (Yandex Music)",
+        artist="Unknown",
+        source_url=url,
+        source_platform=Platform.YANDEX_MUSIC,
+    )
+
+
+async def fetch_anghami_metadata(url: str) -> TrackInfo | None:
+    """Anghami requires auth; fallback."""
+    return TrackInfo(
+        title="Unknown (Anghami)",
+        artist="Unknown",
+        source_url=url,
+        source_platform=Platform.ANGHAMI,
+    )
+
+
 async def extract_metadata(link: ParsedLink) -> TrackInfo | None:
     """Dispatch to the right metadata fetcher based on platform."""
     match link.platform:
@@ -265,4 +415,20 @@ async def extract_metadata(link: ParsedLink) -> TrackInfo | None:
             return await fetch_soundcloud_metadata(link.original_url)
         case Platform.BANDCAMP:
             return await fetch_bandcamp_metadata(link.original_url)
+        case Platform.DEEZER:
+            return await fetch_deezer_metadata(link.original_url)
+        case Platform.TIDAL:
+            return await fetch_tidal_metadata(link.original_url)
+        case Platform.AMAZON_MUSIC:
+            return await fetch_amazon_music_metadata(link.original_url)
+        case Platform.QOBUZ:
+            return await fetch_qobuz_metadata(link.original_url)
+        case Platform.NAPSTER:
+            return await fetch_napster_metadata(link.original_url)
+        case Platform.PANDORA:
+            return await fetch_pandora_metadata(link.original_url)
+        case Platform.YANDEX_MUSIC:
+            return await fetch_yandex_music_metadata(link.original_url)
+        case Platform.ANGHAMI:
+            return await fetch_anghami_metadata(link.original_url)
     return None
