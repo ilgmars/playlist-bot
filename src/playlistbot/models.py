@@ -22,8 +22,6 @@ class Platform(StrEnum):
     QOBUZ = "qobuz"
     NAPSTER = "napster"
     PANDORA = "pandora"
-    YANDEX_MUSIC = "yandex_music"
-    ANGHAMI = "anghami"
     GENERIC = "generic"
 
 

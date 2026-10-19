@@ -355,52 +355,6 @@ async def fetch_pandora_metadata(url: str) -> TrackInfo | None:
     )
 
 
-async def fetch_yandex_music_metadata(url: str) -> TrackInfo | None:
-    """Yandex Music public page scrape."""
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; PlaylistBot/0.1)"}
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, headers=headers, follow_redirects=True)
-        if resp.status_code != 200:
-            return None
-        text = resp.text
-    except Exception as e:
-        log.debug("Yandex Music request failed: %s", e)
-        return None
-
-    # Yandex embeds track data in JSON
-    m = re.search(r"track\s*:\s*(\{.+?\})", text, re.DOTALL)
-    if m:
-        try:
-            data = json.loads(m.group(1))
-            return TrackInfo(
-                title=data.get("title", "Unknown"),
-                artist=data.get("artists", [{}])[0].get("name", "Unknown"),
-                album=data.get("albums", [{}])[0].get("title"),
-                duration_ms=data.get("durationMs"),
-                source_url=url,
-                source_platform=Platform.YANDEX_MUSIC,
-            )
-        except Exception:
-            pass
-    return TrackInfo(
-        title="Unknown (Yandex Music)",
-        artist="Unknown",
-        source_url=url,
-        source_platform=Platform.YANDEX_MUSIC,
-    )
-
-
-async def fetch_anghami_metadata(url: str) -> TrackInfo | None:
-    """Anghami requires auth; fallback."""
-    return TrackInfo(
-        title="Unknown (Anghami)",
-        artist="Unknown",
-        source_url=url,
-        source_platform=Platform.ANGHAMI,
-    )
-
-
 async def extract_metadata(link: ParsedLink) -> TrackInfo | None:
     """Dispatch to the right metadata fetcher based on platform."""
     match link.platform:
@@ -427,8 +381,4 @@ async def extract_metadata(link: ParsedLink) -> TrackInfo | None:
             return await fetch_napster_metadata(link.original_url)
         case Platform.PANDORA:
             return await fetch_pandora_metadata(link.original_url)
-        case Platform.YANDEX_MUSIC:
-            return await fetch_yandex_music_metadata(link.original_url)
-        case Platform.ANGHAMI:
-            return await fetch_anghami_metadata(link.original_url)
     return None

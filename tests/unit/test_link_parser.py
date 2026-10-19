@@ -142,16 +142,6 @@ class TestNewPlatforms:
         assert link is not None
         assert link.platform == Platform.PANDORA
 
-    def test_yandex_music_track(self):
-        link = parse_link("https://music.yandex.ru/track/123456789")
-        assert link is not None
-        assert link.platform == Platform.YANDEX_MUSIC
-
-    def test_anghami_track(self):
-        link = parse_link("https://play.anghami.com/song/abc-def")
-        assert link is not None
-        assert link.platform == Platform.ANGHAMI
-
 
 class TestNonMusicLinks:
     def test_non_music_url(self):

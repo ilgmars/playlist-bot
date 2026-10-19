@@ -23,8 +23,6 @@ class Platform(StrEnum):
     QOBUZ = "qobuz"
     NAPSTER = "napster"
     PANDORA = "pandora"
-    YANDEX_MUSIC = "yandex_music"
-    ANGHAMI = "anghami"
 
 
 @dataclass(frozen=True)
@@ -102,16 +100,6 @@ _PATTERNS: list[tuple[Platform, re.Pattern[str], str]] = [
         r'https?://(?:www\.)?pandora\.com/'
         r'(track|album|artist|station)/([A-Za-z0-9-]+)'
     ), 'https://www.pandora.com/{kind}/{id}'),
-    # Yandex Music (CIS)
-    (Platform.YANDEX_MUSIC, re.compile(
-        r'https?://music\.yandex\.(?:ru|com|kz|by|ua)/'
-        r'(album|track|artist)/(\d+)'
-    ), 'https://music.yandex.ru/{kind}/{id}'),
-    # Anghami (Middle East)
-    (Platform.ANGHAMI, re.compile(
-        r'https?://(?:play\.)?anghami\.com/'
-        r'(song|album|artist|playlist)/([A-Za-z0-9-]+)'
-    ), 'https://play.anghami.com/{kind}/{id}'),
 ]
 
 
@@ -169,16 +157,6 @@ def normalize_url(platform: Platform, match: re.Match[str], original: str) -> st
         id_match = match.group(2)
         if kind_match and id_match:
             return f"https://www.pandora.com/{kind_match}/{id_match}"
-    if platform == Platform.YANDEX_MUSIC:
-        kind_match = match.group(1)
-        id_match = match.group(2)
-        if kind_match and id_match:
-            return f"https://music.yandex.ru/{kind_match}/{id_match}"
-    if platform == Platform.ANGHAMI:
-        kind_match = match.group(1)
-        id_match = match.group(2)
-        if kind_match and id_match:
-            return f"https://play.anghami.com/{kind_match}/{id_match}"
     if platform == Platform.APPLE_MUSIC:
         # groups can vary; just return original for simplicity
         return original
@@ -219,10 +197,6 @@ def _extract_track_id(platform: Platform, match: re.Match[str]) -> str | None:
     if platform == Platform.NAPSTER:
         return match.group(2)
     if platform == Platform.PANDORA:
-        return match.group(2)
-    if platform == Platform.YANDEX_MUSIC:
-        return match.group(2)
-    if platform == Platform.ANGHAMI:
         return match.group(2)
     if platform == Platform.APPLE_MUSIC:
         return match.group(2) or match.group(3)
