@@ -19,8 +19,17 @@ services:
     volumes:
       - playlist-data:/data
       - ./logs:/app/logs
-    ports:
-      - "8000:8000"
+    # port 8000 only exposed to cloudflared, not host
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    environment:
+      - CF_TUNNEL_TOKEN
+    depends_on:
+      - playlist-bot
+    # cloudflared connects to playlist-bot:8000 internally
 
 volumes:
   playlist-data:
