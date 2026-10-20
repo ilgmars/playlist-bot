@@ -1,43 +1,383 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Playlist Bot</title>
-  <style>
-    body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-    .song-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem; margin: 0.5rem 0; }
-    .song-header { display: flex; gap: 1rem; align-items: baseline; }
-    .song-title { font-size: 1.1rem; }
-    .song-artist { color: #666; font-size: 0.9rem; }
-    .song-time { color: #888; font-size: 0.8rem; margin-left: auto; }
-    .song-links a { margin-right: 0.5rem; font-size: 0.8rem; }
-    .empty { color: #999; text-align: center; padding: 2rem; }
-    h1 { font-size: 1.5rem; }
-    .refresh-note { color: #888; font-size: 0.8rem; }
-  </style>
+  <title>Playlist Bot Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+  <script src="https://unpkg.com/htmx.org@1.9.10" defer></script>
+  <script>
+    // Theme persistence
+    (function() {
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (saved === 'dark' || (!saved && prefersDark)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+    
+    // Theme toggle
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+    }
+    
+    // Platform filter
+    function filterPlatform(btn, platform) {
+      const isActive = btn.classList.toggle('active');
+      const cards = document.querySelectorAll('.song-card');
+      
+      // Get all active filters
+      const activeFilters = Array.from(document.querySelectorAll('.platform-chip.active'))
+        .map(b => b.dataset.platform);
+      
+      cards.forEach(card => {
+        if (activeFilters.length === 0) {
+          card.style.display = 'flex';
+          return;
+        }
+        
+        const cardPlatforms = Array.from(card.querySelectorAll('.platform-badge'))
+          .map(b => b.dataset.platform);
+        
+        const hasMatch = cardPlatforms.some(p => activeFilters.includes(p));
+        card.style.display = hasMatch ? 'flex' : 'none';
+      });
+    }
+    
+    // Search filter
+    let searchDebounce;
+    function filterSearch(input) {
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => {
+        const query = input.value.toLowerCase().trim();
+        const cards = document.querySelectorAll('.song-card');
+        
+        cards.forEach(card => {
+          if (!query) {
+            card.style.display = 'flex';
+            return;
+          }
+          
+          const title = card.querySelector('.song-title')?.textContent.toLowerCase() || '';
+          const artist = card.querySelector('.song-artist')?.textContent.toLowerCase() || '';
+          const platforms = Array.from(card.querySelectorAll('.platform-badge'))
+            .map(b => b.dataset.platform).join(' ');
+          
+          const haystack = title + ' ' + artist + ' ' + platforms;
+          card.style.display = haystack.includes(query) ? 'flex' : 'none';
+        });
+      }, 150);
+    }
+    
+    // Auto-refresh songs via HTMX
+    document.addEventListener('htmx:afterSwap', function(evt) {
+      if (evt.detail.target.id === 'songs-grid') {
+        // Re-attach platform chip listeners for new cards
+        document.querySelectorAll('.song-card .platform-badge').forEach(badge => {
+          badge.addEventListener('click', function(e) {
+            e.preventDefault();
+            // Could add copy link functionality here
+          });
+        });
+      }
+    });
+    
+    // Periodic refresh
+    setInterval(() => {
+      htmx.ajax('GET', '/api/songs', { target: '#songs-grid', swap: 'innerHTML' });
+    }, 30000);
+  </script>
 </head>
 <body>
-  <h1>Playlist Bot</h1>
-  <p class="refresh-note">Latest songs collected from Discord — newest first.</p>
-  <div id="songs">
-    {% for song in songs %}
-    <article class="song-card">
-      <div class="song-header">
-        <strong class="song-title">{{ song.title }}</strong>
-        <span class="song-artist">{{ song.artist }}</span>
-        <time class="song-time">{{ song.created_at }}</time>
+  <div class="dashboard">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <a href="/" class="logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18V5l12-2v13"/>
+            <circle cx="6" cy="18" r="3"/>
+            <circle cx="18" cy="16" r="3"/>
+          </svg>
+          <span class="logo-text">Playlist Bot</span>
+        </a>
+        <p class="subtitle">Cross-platform playlist collector from Discord</p>
       </div>
-      <div class="song-links">
-        {% for link in song.links %}
-        <a href="{{ link.original_url }}" target="_blank" rel="noopener">{{ link.platform|capitalize }}</a>
-        {% endfor %}
+      <div class="header-right">
+        <div class="platform-filter" id="global-platform-filter" style="display: none;">
+          <!-- Populated dynamically -->
+        </div>
+        <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
+          <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+          <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        </button>
       </div>
-    </article>
-    {% endfor %}
-    {% if not songs %}
-    <p class="empty">No songs collected yet. Post a music link in Discord!</p>
-    {% endif %}
+    </header>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar" id="stats-bar">
+      <div class="stat-card">
+        <div class="stat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18V5l12-2v13"/>
+            <circle cx="6" cy="18" r="3"/>
+            <circle cx="18" cy="16" r="3"/>
+          </svg>
+        </div>
+        <div class="stat-content">
+          <div class="stat-value" id="stat-songs">0</div>
+          <div class="stat-label">Songs Collected</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <path d="M8 21h8"/>
+            <path d="M12 17v4"/>
+          </svg>
+        </div>
+        <div class="stat-content">
+          <div class="stat-value" id="stat-platforms">0</div>
+          <div class="stat-label">Platforms</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        </div>
+        <div class="stat-content">
+          <div class="stat-value" id="stat-links">0</div>
+          <div class="stat-label">Total Links</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </div>
+        <div class="stat-content">
+          <div class="stat-value" id="stat-last-update">—</div>
+          <div class="stat-label">Last Update</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <input 
+        type="search" 
+        class="search-input" 
+        placeholder="Search songs, artists, platforms..."
+        oninput="filterSearch(this)"
+        aria-label="Search songs"
+      >
+      <div class="platform-filter" id="platform-filter"></div>
+    </div>
+
+    <!-- Songs Section -->
+    <section class="songs-section">
+      <div class="section-header">
+        <h2 class="section-title">Latest Songs</h2>
+        <span class="song-count" id="song-count">Loading...</span>
+      </div>
+      
+      <div id="songs-grid" class="songs-grid" hx-get="/api/songs" hx-trigger="load" hx-swap="innerHTML">
+        <!-- Songs loaded via HTMX -->
+      </div>
+      
+      <div id="empty-state" class="empty-state" style="display: none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 18V5l12-2v13"/>
+          <circle cx="6" cy="18" r="3"/>
+          <circle cx="18" cy="16" r="3"/>
+        </svg>
+        <h3>No songs yet</h3>
+        <p>Send a music link in Discord and the bot will pick it up.</p>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Playlist Bot v0.1.0 — Built with FastAPI, HTMX & Discord.py</p>
+      <p><a href="https://github.com/ilgmars/playlist-bot" target="_blank" rel="noopener">View on GitHub</a></p>
+    </footer>
   </div>
+
+  <script>
+    // Initialize stats from first load
+    document.addEventListener('htmx:afterSwap', function(evt) {
+      if (evt.detail.target.id === 'songs-grid') {
+        updateStats();
+        updatePlatformFilters();
+        updateEmptyState();
+      }
+    });
+
+    function updateStats() {
+      const cards = document.querySelectorAll('#songs-grid .song-card:not([style*="display: none"])');
+      const allCards = document.querySelectorAll('#songs-grid .song-card');
+      
+      // Count songs
+      document.getElementById('stat-songs').textContent = cards.length;
+      document.getElementById('song-count').textContent = 
+        `${cards.length} song${cards.length !== 1 ? 's' : ''} ${cards.length !== allCards.length ? `(of ${allCards.length})` : ''}`;
+      
+      // Count unique platforms
+      const platformSet = new Set();
+      let linkCount = 0;
+      cards.forEach(card => {
+        card.querySelectorAll('.platform-badge').forEach(badge => {
+          platformSet.add(badge.dataset.platform);
+          linkCount++;
+        });
+      });
+      document.getElementById('stat-platforms').textContent = platformSet.size;
+      document.getElementById('stat-links').textContent = linkCount;
+      
+      // Last update
+      const times = Array.from(cards).map(card => {
+        const timeEl = card.querySelector('.song-time');
+        return timeEl ? new Date(timeEl.textContent) : null;
+      }).filter(Boolean);
+      if (times.length > 0) {
+        const latest = new Date(Math.max(...times.map(t => t.getTime())));
+        document.getElementById('stat-last-update').textContent = 
+          latest.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+    }
+
+    function updatePlatformFilters() {
+      const platformSet = new Set();
+      document.querySelectorAll('#songs-grid .platform-badge').forEach(badge => {
+        platformSet.add(badge.dataset.platform);
+      });
+      
+      const filterContainer = document.getElementById('platform-filter');
+      const globalContainer = document.getElementById('global-platform-filter');
+      
+      filterContainer.innerHTML = '';
+      globalContainer.innerHTML = '';
+      
+      // Platform icons
+      const icons = {
+        youtube: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 7.657 0 12 0 12s0 4.343.502 5.814a3.016 3.016 0 0 0 2.122 2.136C4.495 20.456 12 20.456 12 20.456s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 16.343 24 12 24 12s0-4.343-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>',
+        youtube_music: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 7.657 0 12 0 12s0 4.343.502 5.814a3.016 3.016 0 0 0 2.122 2.136C4.495 20.456 12 20.456 12 20.456s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 16.343 24 12 24 12s0-4.343-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>',
+        spotify: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.521 17.34c-.63.405-1.416.628-2.172.654-.56.018-1.146-.086-1.587-.386-.206-.138-.707-.39-1.029-.57-.705-.39-1.446-.874-1.983-1.416-.65-.655-1.164-1.505-1.5-2.605-.29-1.027-.443-2.09-.443-3.143 0-1.28.146-2.402.45-3.356.526-1.16 1.26-2.072 2.21-2.75.292-.207.6-.385.92-.53.63-.29 1.418-.443 2.165-.443 1.047 0 1.97.16 2.73.472.76.312 1.447.82 1.98 1.54.247.333.427.756.527 1.27.18.98.27 2.05.27 3.187 0 1.197-.098 2.31-.288 3.34-.37 2.017-1.248 3.474-2.53 4.42zm-6.447-5.982c-.55.43-1.022.728-1.35.952a2.284 2.284 0 0 1-1.252.205 2.833 2.833 0 0 1-1.24-.202 2.456 2.456 0 0 1-1.357-.927c-.68-.56-1.25-1.322-1.707-2.262-.14-.29-.222-.61-.222-.956 0-.787.133-1.47.383-2.06.28-.554.75-1.004 1.42-1.333.497-.243 1.032-.37 1.607-.37.707 0 1.307.182 1.68.53.38.34.662.82.84 1.42.18.61.27 1.32.27 2.14 0 .82-.09 1.53-.27 2.14z"/></svg>',
+        apple_music: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.724 4.004c-.306-.503-.834-.66-1.36-.36l-3.4 2.034a.77.77 0 0 0-.28.906l4.168 8.332c.203.41.728.553 1.14.307a1.62 1.62 0 0 0 .62-1.85l-3.44-6.883c-.14-.286-.477-.38-.76-.202zm-14.44 0C3.98 4.004 3.46 4.17 3.15 4.47l-4.17 8.332a.807.807 0 0 0 .28.906l3.4 2.033c.52.306 1.048.14 1.36-.36a1.62 1.62 0 0 0-.62-1.85l3.44-6.882c.14-.286.477-.38.76-.2zm11.953 10.026l3.44 6.883c.134.278-.194.615-.476.76a1.62 1.62 0 0 1-1.14.306l-4.168 8.332c-.47.278-1.12.13-1.52-.304a.77.77 0 0 1-.28-.906l4.17-8.333c.204-.41.72-.55 1.14-.306zm-11.953 0l-3.44-6.883c-.13-.27-.47-.38-.76-.2a1.62 1.62 0 0 1 1.14-.306l4.168-8.332c.467-.277 1.12-.13 1.52.304a.77.77 0 0 1 .28.906l-4.17 8.333c-.203.41-.73.55-1.14.306z"/></svg>',
+        sound_cloud: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.014 4.024c-4.54 0-7.51 3.656-7.51 7.988 0 2.24.967 4.184 2.492 5.604-1.695 1.887-3.875 4.484-3.875 6.905 0 2.7 2.12 4.82 5.66 4.82s5.66-2.12 5.66-4.82c0-2.136-1.882-4.43-3.718-6.495 1.375-1.42 2.365-3.18 2.365-5.118 0-2.678-2.12-4.85-5.67-4.85M18.28 12.36c-2.79 0-5.078 2.33-5.078 5.2 0 2.86 2.28 5.19 5.078 5.19s5.08-2.33 5.08-5.2c0-2.87-2.29-5.2-5.08-5.2z"/></svg>',
+        bandcamp: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v16l8-8z"/></svg>',
+        deezer: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.134 11.265v-3.884h3.63v3.884h-3.63zm1.174 5.035v-3.788h3.57v3.788h-3.57zm4.04-10.07h-1.722c-.69 0-1.303.57-1.303 1.276 0 .72.63 1.29 1.28 1.29.633 0 1.155-.54 1.155-1.303v-1.26h2.045v6.782h-1.682v-3.685h-.137c-.043.59-.52 1.038-1.22 1.038-.78 0-1.297-.54-1.297-1.22v-1.156h-1.44v6.782h-1.69v-6.782h-1.15v-1.156h1.15v-2.21h3.51v2.21h1.15v1.156h-1.15v1.15c0 .667.57 1.22 1.297 1.22.643 0 1.145-.51 1.212-1.038h.157v3.685h1.682v-6.782h2.045v1.26c0 .707.54 1.29 1.193 1.29.61 0 1.23-.57 1.29-1.3 0-.733-.53-1.29-1.28-1.29h-1.72zm-6.575 11.94c-.675 0-1.28-.54-1.28-1.22v-1.156h-1.44v6.782h-1.69v-6.782h-1.15v-1.156h1.15v-2.21h3.51v2.21h1.15v1.156h-1.15v1.15c0 .667.57 1.22 1.297 1.22.643 0 1.145-.51 1.212-1.038h.157v3.685h1.682v-6.782h2.045v1.26c0 .707.54 1.29 1.193 1.29.61 0 1.23-.57 1.29-1.3 0-.733-.53-1.29-1.28-1.29h-1.72zm-6.575 11.94c-.675 0-1.28-.54-1.28-1.22v-1.156h-1.44v6.782h-1.69v-6.782h-1.15v-1.156h1.15v-2.21h3.51v2.21h1.15v1.156h-1.15v1.15c0 .667.57 1.22 1.297 1.22.643 0 1.145-.51 1.212-1.038h.157v3.685h1.682v-6.782h2.045v1.26c0 .707.54 1.29 1.193 1.29.61 0 1.23-.57 1.29-1.3 0-.733-.53-1.29-1.28-1.29h-1.72z"/></svg>',
+        tidal: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 24c6.627 0 12-5.373 12-12S18.627 0 12 0 0 5.373 0 12s5.373 12 12 12zm-1.25-13.5c0 1.542-1.25 2.8-2.75 2.8s-2.75-1.258-2.75-2.8 1.25-2.8 2.75-2.8 2.75 1.258 2.75 2.8zM12 3c4.963 0 9 4.037 9 9s-4.037 9-9 9-9-4.037-9-9 4.037-9 9-9zm0 1.5c-4.136 0 7.5 3.364 7.5 7.5s-3.364 7.5-7.5 7.5S4.5 15.136 4.5 11S7.864 3 12 3z"/></svg>',
+        amazon_music: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.22 4.86c.6-.33.9-.97.78-1.57-.12-.6-.62-1.08-1.2-.93l-9 2.5c-.47.13-.84.5-.98 1-.14.49-.06 1.06.28 1.4l12.2 9.2c.53.4.47 1.22-.1 1.6l-2.5 2.8c-.5.5-1.28.5-1.78 0l-1.8-2c-.6-.6-1.58-.42-2.05.22l-9.5 9.5c-.5.5-1.2.8-1.86.55-.66-.26-1.1-.92-1.1-1.58V4.4c0-.5.4-1 .9-1h15.8c.5 0 1.03.22 1.42.66z"/></svg>',
+        qobuz: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.6 3.2H2.4C1.4 3.2.6 4 .6 5v14c0 1.2.8 2 1.8 2h19.2c1 0 1.8-.8 1.8-2V5c0-1-.8-1.8-1.8-1.8zm-1 16.5H3.4V5.5h17.2v14.2zm-2-5.6c0 .7-.5 1.2-1.2 1.2H4.6c-.7 0-1.2-.5-1.2-1.2V11c0-.7.5-1.2 1.2-1.2h13.2c.7 0 1.2.5 1.2 1.2v3.1z"/></svg>',
+        napster: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-15.5c-3.03 0-5.5 2.47-5.5 5.5s2.47 5.5 5.5 5.5 5.5-2.47 5.5-5.5-2.47-5.5-5.5-5.5z"/></svg>',
+        pandora: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm6.92 17.47c-.7.7-1.67.95-2.72.7-.52-.1-1.04-.1-1.57-.1-.97 0-1.77.1-2.4.4l-.07-.03c-1.1-.54-2.24-.68-3.35-.68-2.57 0-4.4 2.27-4.4 4.94 0 1.13.38 2.09.83 2.67.32.38.7.64 1.13.83.96.4 2.04.63 3.14.68.54 0 .96-.08 1.23-.22.15-.08.26-.19.36-.32l.07-.08c.34-.34.47-.83.38-1.39-.17-1.07-.23-2.1-.1-2.87.28-1.63.77-2.9 1.7-3.95 1.54-1.7 3.56-2.6 5.58-2.6 1.8 0 3.12.7 3.98 1.46.67.58 1.17 1.22 1.34 1.87.18.65.1 1.43-.1 2.18zm-8.92-5.37c-.43-1.1-.5-2.57-.1-3.92.4-1.3 1.23-2.25 2.57-2.84 1.43-.6 3.3-.6 5.03-.2 1.15.3 2.22.9 3.15 2 .74.88 1.14 1.9.97 2.97-.2 1.13-.75 1.95-1.68 2.4-1.54.75-3.7.67-5.14-.07-1.06-.57-1.85-1.43-2.15-2.4-.27-.9-.23-1.9.04-2.6.27-.62.72-1.1 1.27-1.4.3-.17.58-.22.84-.22.43 0 .8.1 1.1.23.58.26.82.78.7 1.36-.3.6-1.1.9-1.93.9-1.8 0-3.1-1.8-3.2-3.3-.03-1.45.8-2.5 2-3.07zm7.73 14.94c-.85 1.04-1.87 1.45-2.72 1.45-1.2 0-2.12-.72-2.32-1.8-.08-.42-.06-.83.07-1.27.12-.44.35-.85.65-1.23.4-.47.92-.85 1.53-.94.55-.08 1.04.04 1.37.3.26.2.4.5.44.88-.03.3-.17.6-.45.8-.57.3-1.2.5-1.9.5zm-1.8-3.92c-.72-.05-1.37-.48-1.77-1.2-.33-.6-.4-1.4-.25-2.3.18-1.04.7-1.97 1.75-2.5.55-.27 1.13-.3 1.68-.2.62.1 1.2.4 1.7 1.07.5.67.7 1.57.55 2.47-.05.3-.2.57-.57.65-.68.15-1.4.05-1.98-.08z"/></svg>',
+      };
+      
+      platformSet.forEach(platform => {
+        const icon = icons[platform] || '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'platform-chip';
+        btn.dataset.platform = platform;
+        btn.onclick = (e) => filterPlatform(e.target.closest('.platform-chip'), platform);
+        btn.innerHTML = `${icon}<span>${platform.replace('_', ' ')}</span>`;
+        filterContainer.appendChild(btn.cloneNode(true));
+        globalContainer.appendChild(btn);
+      });
+      
+      // Show global filter if we have platforms
+      if (platformSet.size > 0) {
+        globalContainer.style.display = 'flex';
+      }
+    }
+
+    function updateEmptyState() {
+      const cards = document.querySelectorAll('#songs-grid .song-card:not([style*="display: none"])');
+      const emptyState = document.getElementById('empty-state');
+      const songsGrid = document.getElementById('songs-grid');
+      
+      if (cards.length === 0) {
+        emptyState.style.display = 'block';
+        songsGrid.style.display = 'none';
+      } else {
+        emptyState.style.display = 'none';
+        songsGrid.style.display = 'grid';
+      }
+    }
+
+    function filterPlatform(btn, platform) {
+      const isActive = btn.classList.toggle('active');
+      const cards = document.querySelectorAll('#songs-grid .song-card');
+      
+      const activeFilters = Array.from(document.querySelectorAll('.platform-chip.active'))
+        .map(b => b.dataset.platform);
+      
+      cards.forEach(card => {
+        if (activeFilters.length === 0) {
+          card.style.display = 'flex';
+          return;
+        }
+        
+        const cardPlatforms = Array.from(card.querySelectorAll('.platform-badge'))
+          .map(b => b.dataset.platform);
+        
+        const hasMatch = cardPlatforms.some(p => activeFilters.includes(p));
+        card.style.display = hasMatch ? 'flex' : 'none';
+      });
+      
+      updateEmptyState();
+    }
+
+    function filterSearch(input) {
+      const query = input.value.toLowerCase().trim();
+      const cards = document.querySelectorAll('#songs-grid .song-card');
+      
+      cards.forEach(card => {
+        if (!query) {
+          card.style.display = 'flex';
+          return;
+        }
+        
+        const title = card.querySelector('.song-title')?.textContent.toLowerCase() || '';
+        const artist = card.querySelector('.song-artist')?.textContent.toLowerCase() || '';
+        const platforms = Array.from(card.querySelectorAll('.platform-badge'))
+          .map(b => b.dataset.platform).join(' ');
+        
+        const haystack = title + ' ' + artist + ' ' + platforms;
+        card.style.display = haystack.includes(query) ? 'flex' : 'none';
+      });
+      
+      updateEmptyState();
+    }
+
+    // Initialize on load
+    document.addEventListener('DOMContentLoaded', () => {
+      updateStats();
+      updatePlatformFilters();
+      updateEmptyState();
+    });
+  </script>
 </body>
 </html>

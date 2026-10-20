@@ -43,7 +43,8 @@ class TestIndexPage:
         resp = client.get("/")
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
-        assert "<h1>Playlist Bot</h1>" in resp.text
+        assert "Playlist Bot Dashboard" in resp.text
+        assert "Playlist Bot" in resp.text
 
 
 class TestSongsApi:
