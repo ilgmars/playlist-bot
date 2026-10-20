@@ -27,7 +27,7 @@ def main():
     elif role == "web":
         import uvicorn
 
-        host = os.environ.get("WEB_HOST", "0.0.0.0")
+        host = os.environ.get("WEB_HOST", "0.0.0.0")  # nosec B104 - containers must accept external traffic
         port = int(os.environ.get("WEB_PORT", "8000"))
         uvicorn.run("playlistbot.web:app", host=host, port=port, log_level="info")
     elif role == "all":
@@ -36,7 +36,7 @@ def main():
         import uvicorn
 
         def run_web():
-            uvicorn.run("playlistbot.web:app", host="0.0.0.0", port=8000, log_level="info")
+            uvicorn.run("playlistbot.web:app", host="0.0.0.0", port=8000, log_level="info")  # nosec B104 - container bind
 
         token = os.environ.get("DISCORD_TOKEN")
         if not token:
