@@ -135,18 +135,7 @@ jobs:
 
           # Check for large functions
           echo "=== Large functions (>50 lines) ==="
-          python -c "
-import ast
-import sys
-for file in __import__('glob').glob('src/**/*.py', recursive=True):
-    with open(file) as f:
-        tree = ast.parse(f.read(), filename=file)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef):
-            lines = node.end_lineno - node.lineno
-            if lines > 50:
-                print(f'{file}:{node.lineno} {node.name} - {lines} lines')
-          " || true
+          python -c "import ast, glob; [print(f'{f}:{n.lineno} {n.name} - {n.end_lineno-n.lineno} lines') for f in glob.glob('src/**/*.py', recursive=True) for n in ast.walk(ast.parse(open(f).read(), filename=f)) if isinstance(n, ast.FunctionDef) and (n.end_lineno-n.lineno) > 50]" || true
 
   deploy:
     name: Deploy to PVE (Mock)
