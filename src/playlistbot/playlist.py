@@ -3,6 +3,7 @@
 Creates or appends to playlists on YouTube and Spotify.
 Apple Music writes to a .m3u export (manual import).
 """
+
 from __future__ import annotations
 
 import logging
@@ -77,10 +78,13 @@ class PlaylistManager:
 
     def _build_youtube_client(self) -> Any:
         import googleapiclient.discovery
+
         return googleapiclient.discovery.build("youtube", "v3", credentials=self._youtube_creds)
 
     def _get_or_create_youtube_playlist(
-        self, channel_id: str, title: str = "Shared Playlist",
+        self,
+        channel_id: str,
+        title: str = "Shared Playlist",
     ) -> str | None:
         """Get existing playlist ID or create a new one for the channel."""
         client = self._ensure_youtube()
@@ -106,7 +110,10 @@ class PlaylistManager:
         return playlist_id
 
     def add_to_youtube_playlist(
-        self, channel_id: str, playlist_id: str, video_id: str,
+        self,
+        channel_id: str,
+        playlist_id: str,
+        video_id: str,
     ) -> bool:
         """Prepend a video to the top of the playlist (position=0)."""
         client = self._ensure_youtube()
@@ -163,8 +170,10 @@ class PlaylistManager:
         if not token_info or sp_oauth.is_token_expired(token_info):
             # First run — would need to visit the auth URL
             if not token_info:
-                log.warning("Spotify token not found — run auth flow first: %s",
-                            sp_oauth.get_authorize_url())
+                log.warning(
+                    "Spotify token not found — run auth flow first: %s",
+                    sp_oauth.get_authorize_url(),
+                )
                 return None
             token_info = sp_oauth.refresh_access_token(token_info["refresh_token"])
 
@@ -173,11 +182,15 @@ class PlaylistManager:
 
     def _extract_spotify_track_id(self, url: str) -> str | None:
         import re
+
         m = re.search(r"/track/([A-Za-z0-9]{22})", url)
         return m.group(1) if m else None
 
     def add_to_spotify_playlist(
-        self, channel_id: str, playlist_id: str, track_url: str,
+        self,
+        channel_id: str,
+        playlist_id: str,
+        track_url: str,
     ) -> bool:
         """Add a Spotify track to the playlist (prepend)."""
         client = self._ensure_spotify()
@@ -203,7 +216,9 @@ class PlaylistManager:
             return False
 
     def create_spotify_playlist(
-        self, channel_id: str, title: str = "Shared Playlist",
+        self,
+        channel_id: str,
+        title: str = "Shared Playlist",
     ) -> str | None:
         client = self._ensure_spotify()
         if not client:

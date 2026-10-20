@@ -3,6 +3,7 @@
 Uses yt-dlp to fetch YouTube metadata, and direct HTTP calls for Spotify / Apple Music.
 Returns a normalized TrackInfo dataclass.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -76,7 +77,8 @@ async def fetch_youtube_metadata(url: str) -> TrackInfo | None:
 
 
 async def fetch_spotify_metadata(
-    url: str, token: str | None = None,
+    url: str,
+    token: str | None = None,
 ) -> TrackInfo | None:
     """Fetch Spotify metadata from the track URL.
 
@@ -113,9 +115,7 @@ async def fetch_spotify_metadata(
     # Fallback: scrape oEmbed for basic info
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(
-                f"https://open.spotify.com/oembed?url={spotify_url}"
-            )
+            resp = await client.get(f"https://open.spotify.com/oembed?url={spotify_url}")
         if resp.status_code == 200:
             data = resp.json()
             title = data.get("title", "")
@@ -242,9 +242,7 @@ async def fetch_bandcamp_metadata(url: str) -> TrackInfo | None:
                 title=track.get("title", "Unknown"),
                 artist=track.get("artist", "Unknown"),
                 album=track.get("album_title"),
-                duration_ms=int(track.get("duration", 0) * 1000)
-                if track.get("duration")
-                else None,
+                duration_ms=int(track.get("duration", 0) * 1000) if track.get("duration") else None,
                 source_url=url,
                 source_platform=Platform.BANDCAMP,
             )
@@ -254,6 +252,7 @@ async def fetch_bandcamp_metadata(url: str) -> TrackInfo | None:
 async def fetch_deezer_metadata(url: str) -> TrackInfo | None:
     """Use Deezer's public API (no auth needed for basic track info)."""
     import re
+
     m = re.search(r"/track/(\d+)", url)
     if not m:
         return None

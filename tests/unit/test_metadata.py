@@ -1,4 +1,5 @@
 """Tests for metadata extraction — mocked API calls."""
+
 import pytest
 
 from playlistbot.link_parser import ParsedLink, Platform

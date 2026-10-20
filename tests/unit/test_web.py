@@ -1,4 +1,5 @@
 """Tests for the web API endpoints."""
+
 import asyncio
 
 import pytest
@@ -15,6 +16,7 @@ async def setup_db(tmp_path, monkeypatch):
     import os
 
     import playlistbot.db as dbmod
+
     db_path = str(tmp_path / "test.db")
     monkeypatch.setattr(dbmod, "DB_PATH", db_path)
     monkeypatch.setattr(dbmod, "DB_PATH", db_path)
@@ -55,12 +57,14 @@ class TestSongsApi:
 
     @pytest.mark.asyncio
     async def test_songs_api_with_data(self, client):
-        links = [SongLink(
-            platform=Platform.YOUTUBE,
-            original_url="https://youtube.com/watch?v=abc",
-            canonical_url="https://youtube.com/watch?v=abc",
-            track_id="abc123abc123",
-        )]
+        links = [
+            SongLink(
+                platform=Platform.YOUTUBE,
+                original_url="https://youtube.com/watch?v=abc",
+                canonical_url="https://youtube.com/watch?v=abc",
+                track_id="abc123abc123",
+            )
+        ]
         await insert_song(
             title="Test Song",
             artist="Test Artist",

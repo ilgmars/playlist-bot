@@ -1,4 +1,5 @@
 """Database models and schema for playlist-bot."""
+
 from __future__ import annotations
 
 from datetime import datetime

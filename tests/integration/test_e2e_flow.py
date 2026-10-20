@@ -3,6 +3,7 @@
 This test exercises the real link parser + dedup logic without needing
 actual Discord or YouTube/Spotify APIs.
 """
+
 import asyncio
 
 import pytest
@@ -23,6 +24,7 @@ async def setup_db(tmp_path, monkeypatch):
     import os
 
     import playlistbot.db as dbmod
+
     db_path = str(tmp_path / "test_integration.db")
     monkeypatch.setattr(dbmod, "DB_PATH", db_path)
     os.environ["DB_PATH"] = db_path

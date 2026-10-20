@@ -3,6 +3,7 @@
 Key design: the bot posts a single 'card' message in a thread per channel.
 On each new song, it edits that message in place (no duplicate messages).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -52,8 +53,7 @@ def _build_card_embed(
     )
     embed.add_field(name="Track", value=f"**{song_title}** — {song_artist}", inline=False)
     links_text = "\n".join(
-        f"[{link['platform'].capitalize()}]({link['original_url']})"
-        for link in all_links
+        f"[{link['platform'].capitalize()}]({link['original_url']})" for link in all_links
     )
     embed.add_field(name="Links", value=links_text or "No links available", inline=False)
     embed.set_footer(text=f"{total} songs collected")
@@ -162,12 +162,14 @@ async def on_message(message: Message):
                     if playlist_url:
                         await update_playlist_url(song_id, platform, playlist_url)
 
-        saved_songs.append({
-            "id": song_id,
-            "title": meta.title,
-            "artist": meta.artist,
-            "links": [_link_to_dict(link, message)],
-        })
+        saved_songs.append(
+            {
+                "id": song_id,
+                "title": meta.title,
+                "artist": meta.artist,
+                "links": [_link_to_dict(link, message)],
+            }
+        )
 
     if not saved_songs:
         return
@@ -198,6 +200,7 @@ async def on_message(message: Message):
 def _parsed_to_model(link: ParsedLink, message: Message) -> SongLink:
     """Convert a ParsedLink to the DB SongLink model."""
     from .models import SongLink
+
     return SongLink(
         platform=link.platform,
         original_url=link.original_url,
@@ -238,7 +241,11 @@ async def _get_playlist_id(channel_id: str, platform: Platform) -> str | None:
         pid = None
 
     if pid:
-        url = f"https://open.spotify.com/playlist/{pid}" if platform == Platform.SPOTIFY else f"https://youtube.com/playlist?list={pid}"
+        url = (
+            f"https://open.spotify.com/playlist/{pid}"
+            if platform == Platform.SPOTIFY
+            else f"https://youtube.com/playlist?list={pid}"
+        )
         await save_playlist_state(channel_id, platform, pid, url)
     return pid
 

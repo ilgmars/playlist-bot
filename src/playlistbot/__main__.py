@@ -1,4 +1,5 @@
 """Entry point for running the bot + web server."""
+
 from __future__ import annotations
 
 import logging
@@ -21,9 +22,11 @@ def main():
             logging.error("DISCORD_TOKEN environment variable is required for bot mode")
             sys.exit(1)
         from .bot import run_bot
+
         run_bot(token)
     elif role == "web":
         import uvicorn
+
         host = os.environ.get("WEB_HOST", "0.0.0.0")
         port = int(os.environ.get("WEB_PORT", "8000"))
         uvicorn.run("playlistbot.web:app", host=host, port=port, log_level="info")

@@ -1,4 +1,5 @@
 """Database layer using aiosqlite with async context manager."""
+
 from __future__ import annotations
 
 import json
@@ -105,17 +106,19 @@ async def insert_song(
     """Insert a song and its dedup links. Returns the song id."""
     song_id = str(uuid.uuid4())
     now = _now()
-    links_json = json.dumps([
-        {
-            "platform": link.platform.value,
-            "original_url": link.original_url,
-            "canonical_url": link.canonical_url,
-            "track_id": link.track_id,
-            "added_by": link.added_by,
-            "message_id": link.message_id,
-        }
-        for link in links
-    ])
+    links_json = json.dumps(
+        [
+            {
+                "platform": link.platform.value,
+                "original_url": link.original_url,
+                "canonical_url": link.canonical_url,
+                "track_id": link.track_id,
+                "added_by": link.added_by,
+                "message_id": link.message_id,
+            }
+            for link in links
+        ]
+    )
     playlists_json = json.dumps(playlist_ids or {})
 
     async with get_db() as db:
@@ -124,8 +127,20 @@ async def insert_song(
             (id, title, artist, album, duration, status, created_at, updated_at,
              links_json, playlist_ids_json, added_by, message_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (song_id, title, artist, album, duration, SongStatus.ENRICHED.value, now, now,
-             links_json, playlists_json, added_by, message_id),
+            (
+                song_id,
+                title,
+                artist,
+                album,
+                duration,
+                SongStatus.ENRICHED.value,
+                now,
+                now,
+                links_json,
+                playlists_json,
+                added_by,
+                message_id,
+            ),
         )
         for link in links:
             await db.execute(
@@ -155,21 +170,27 @@ async def get_songs_newest_first(limit: int = 50) -> list[dict]:
         for row in rows:
             links = json.loads(row["links_json"])
             playlists = json.loads(row["playlist_ids_json"])
-            songs.append({
-                "id": row["id"],
-                "title": row["title"],
-                "artist": row["artist"],
-                "album": row["album"],
-                "created_at": row["created_at"],
-                "links": links,
-                "playlist_urls": playlists,
-            })
+            songs.append(
+                {
+                    "id": row["id"],
+                    "title": row["title"],
+                    "artist": row["artist"],
+                    "album": row["album"],
+                    "created_at": row["created_at"],
+                    "links": links,
+                    "playlist_urls": playlists,
+                }
+            )
         return songs
 
 
 async def save_thread_state(
-    thread_id: str, channel_id: str, last_message_id: str | None,
-    total_songs: int, latest_title: str | None = None, latest_url: str | None = None,
+    thread_id: str,
+    channel_id: str,
+    last_message_id: str | None,
+    total_songs: int,
+    latest_title: str | None = None,
+    latest_url: str | None = None,
 ) -> None:
     async with get_db() as db:
         now = _now()
@@ -191,16 +212,17 @@ async def save_thread_state(
 
 async def get_thread_state(thread_id: str) -> dict | None:
     async with get_db() as db:
-        rows = await db.execute_fetchall(
-            "SELECT * FROM threads WHERE thread_id = ?", (thread_id,)
-        )
+        rows = await db.execute_fetchall("SELECT * FROM threads WHERE thread_id = ?", (thread_id,))
         if not rows:
             return None
         return dict(rows[0])
 
 
 async def save_playlist_state(
-    channel_id: str, platform: Platform, playlist_id: str, playlist_url: str,
+    channel_id: str,
+    platform: Platform,
+    playlist_id: str,
+    playlist_url: str,
 ) -> None:
     async with get_db() as db:
         now = _now()

@@ -3,6 +3,7 @@
 Supports YouTube, YouTube Music, Spotify, Apple Music, SoundCloud, and Bandcamp.
 Each platform has a regex pattern and a normalizer.
 """
+
 from __future__ import annotations
 
 import re
@@ -41,65 +42,109 @@ class ParsedLink:
 
 _PATTERNS: list[tuple[Platform, re.Pattern[str], str]] = [
     # YouTube — watch?v=VIDEO_ID  OR  youtu.be/VIDEO_ID
-    (Platform.YOUTUBE, re.compile(
-        r'https?://(?:www\.)?youtube\.com/watch\?v=([A-Za-z0-9_-]{11})'
-        r'|https?://youtu\.be/([A-Za-z0-9_-]{11})'
-    ), 'https://www.youtube.com/watch?v={id}'),
+    (
+        Platform.YOUTUBE,
+        re.compile(
+            r"https?://(?:www\.)?youtube\.com/watch\?v=([A-Za-z0-9_-]{11})"
+            r"|https?://youtu\.be/([A-Za-z0-9_-]{11})"
+        ),
+        "https://www.youtube.com/watch?v={id}",
+    ),
     # YouTube Music
-    (Platform.YOUTUBE_MUSIC, re.compile(
-        r'https?://music\.youtube\.com/watch\?v=([A-Za-z0-9_-]{11})'
-        r'|https?://(?:www\.)?youtube\.com/watch\?.*list=(RD)?[A-Za-z0-9_-]+.*v=([A-Za-z0-9_-]{11})'
-    ), 'https://music.youtube.com/watch?v={id}'),
+    (
+        Platform.YOUTUBE_MUSIC,
+        re.compile(
+            r"https?://music\.youtube\.com/watch\?v=([A-Za-z0-9_-]{11})"
+            r"|https?://(?:www\.)?youtube\.com/watch\?.*list=(RD)?[A-Za-z0-9_-]+.*v=([A-Za-z0-9_-]{11})"
+        ),
+        "https://music.youtube.com/watch?v={id}",
+    ),
     # Spotify — track, album, artist, playlist, episode
-    (Platform.SPOTIFY, re.compile(
-        r'https?://(?:open\.spotify\.com|spotify\.com)/'
-        r'(track|album|artist|playlist|episode)/'
-        r'([A-Za-z0-9]{22})'
-    ), 'https://open.spotify.com/{kind}/{id}'),
+    (
+        Platform.SPOTIFY,
+        re.compile(
+            r"https?://(?:open\.spotify\.com|spotify\.com)/"
+            r"(track|album|artist|playlist|episode)/"
+            r"([A-Za-z0-9]{22})"
+        ),
+        "https://open.spotify.com/{kind}/{id}",
+    ),
     # Apple Music
-    (Platform.APPLE_MUSIC, re.compile(
-        r'https?://music\.apple\.com/(?:[^/]+/)?'
-        r'(?:album|artist|song)/[^/]+/([A-Za-z0-9]+)\?i=([A-Za-z0-9.-]+)'
-        r'|https?://music\.apple\.com/(?:[^/]+/)?song/([A-Za-z0-9.-]+)'
-    ), 'https://music.apple.com/song/{id}'),
+    (
+        Platform.APPLE_MUSIC,
+        re.compile(
+            r"https?://music\.apple\.com/(?:[^/]+/)?"
+            r"(?:album|artist|song)/[^/]+/([A-Za-z0-9]+)\?i=([A-Za-z0-9.-]+)"
+            r"|https?://music\.apple\.com/(?:[^/]+/)?song/([A-Za-z0-9.-]+)"
+        ),
+        "https://music.apple.com/song/{id}",
+    ),
     # SoundCloud
-    (Platform.SOUND_CLOUD, re.compile(
-        r'https?://(?:www\.)?soundcloud\.com/[\w-]+/[\w-]+'
-    ), '{original}'),  # SoundCloud canonical = original URL
+    (
+        Platform.SOUND_CLOUD,
+        re.compile(r"https?://(?:www\.)?soundcloud\.com/[\w-]+/[\w-]+"),
+        "{original}",
+    ),  # SoundCloud canonical = original URL
     # Bandcamp — subdomain.bandcamp.com/track|album/slug
-    (Platform.BANDCAMP, re.compile(
-        r'https?://[\w-]+\.bandcamp\.com/(?:track|album)/[\w-]+'
-    ), '{original}'),
+    (
+        Platform.BANDCAMP,
+        re.compile(r"https?://[\w-]+\.bandcamp\.com/(?:track|album)/[\w-]+"),
+        "{original}",
+    ),
     # Deezer — track, album, artist, playlist
-    (Platform.DEEZER, re.compile(
-        r'https?://(?:www\.)?deezer\.com/'
-        r'(track|album|artist|playlist)/(\d+)'
-    ), 'https://www.deezer.com/{kind}/{id}'),
+    (
+        Platform.DEEZER,
+        re.compile(
+            r"https?://(?:www\.)?deezer\.com/"
+            r"(track|album|artist|playlist)/(\d+)"
+        ),
+        "https://www.deezer.com/{kind}/{id}",
+    ),
     # Tidal — track, album, artist, playlist
-    (Platform.TIDAL, re.compile(
-        r'https?://(?:listen\.)?tidal\.com/'
-        r'(track|album|artist|playlist)/(\d+)'
-    ), 'https://tidal.com/{kind}/{id}'),
+    (
+        Platform.TIDAL,
+        re.compile(
+            r"https?://(?:listen\.)?tidal\.com/"
+            r"(track|album|artist|playlist)/(\d+)"
+        ),
+        "https://tidal.com/{kind}/{id}",
+    ),
     # Amazon Music
-    (Platform.AMAZON_MUSIC, re.compile(
-        r'https?://music\.amazon\.(?:com|co\.uk|de|fr|jp|ca|es|it|in|com\.br|com\.mx)/'
-        r'(track|album|artist|playlist)/([A-Za-z0-9]+)'
-    ), 'https://music.amazon.com/{kind}/{id}'),
+    (
+        Platform.AMAZON_MUSIC,
+        re.compile(
+            r"https?://music\.amazon\.(?:com|co\.uk|de|fr|jp|ca|es|it|in|com\.br|com\.mx)/"
+            r"(track|album|artist|playlist)/([A-Za-z0-9]+)"
+        ),
+        "https://music.amazon.com/{kind}/{id}",
+    ),
     # Qobuz
-    (Platform.QOBUZ, re.compile(
-        r'https?://(?:play\.)?qobuz\.com/'
-        r'(track|album|artist|playlist)/([A-Za-z0-9-]+)'
-    ), 'https://www.qobuz.com/{kind}/{id}'),
+    (
+        Platform.QOBUZ,
+        re.compile(
+            r"https?://(?:play\.)?qobuz\.com/"
+            r"(track|album|artist|playlist)/([A-Za-z0-9-]+)"
+        ),
+        "https://www.qobuz.com/{kind}/{id}",
+    ),
     # Napster
-    (Platform.NAPSTER, re.compile(
-        r'https?://(?:us\.)?napster\.com/'
-        r'(track|album|artist|playlist)/([A-Za-z0-9-]+)'
-    ), 'https://www.napster.com/{kind}/{id}'),
+    (
+        Platform.NAPSTER,
+        re.compile(
+            r"https?://(?:us\.)?napster\.com/"
+            r"(track|album|artist|playlist)/([A-Za-z0-9-]+)"
+        ),
+        "https://www.napster.com/{kind}/{id}",
+    ),
     # Pandora (US only)
-    (Platform.PANDORA, re.compile(
-        r'https?://(?:www\.)?pandora\.com/'
-        r'(track|album|artist|station)/([A-Za-z0-9-]+)'
-    ), 'https://www.pandora.com/{kind}/{id}'),
+    (
+        Platform.PANDORA,
+        re.compile(
+            r"https?://(?:www\.)?pandora\.com/"
+            r"(track|album|artist|station)/([A-Za-z0-9-]+)"
+        ),
+        "https://www.pandora.com/{kind}/{id}",
+    ),
 ]
 
 

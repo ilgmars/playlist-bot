@@ -1,4 +1,5 @@
 """Web dashboard — FastAPI backend with Jinja2 + HTMX template rendering."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -37,18 +38,18 @@ async def api_songs():
     for song in songs:
         link_tags = " ".join(
             f'<a href="{link["original_url"]}" target="_blank" rel="noopener">'
-            f'{link["platform"].capitalize()}</a>'
+            f"{link['platform'].capitalize()}</a>"
             for link in song.get("links", [])
         )
         parts.append(
-            f'''<article class="song-card">
+            f"""<article class="song-card">
   <div class="song-header">
     <strong class="song-title">{song["title"]}</strong>
     <span class="song-artist">{song["artist"]}</span>
     <time class="song-time">{song["created_at"]}</time>
   </div>
   <div class="song-links">{link_tags}</div>
-</article>'''
+</article>"""
         )
     if not songs:
         return '<p class="empty">No songs collected yet. Post a music link in Discord!</p>'
