@@ -31,10 +31,27 @@
         </svg>
         <span class="brand-text">Playlist Bot</span>
       </div>
-      <p class="brand-sub">Shared Discord queue</p>
+      <p class="brand-sub">Multi-server music queue</p>
+
+      <div class="server-switcher" aria-label="Server profile">
+        <label class="field-label" for="server-filter">Discord Server</label>
+        <select id="server-filter" class="server-select" onchange="filterDemoServer(this.value)">
+          <option value="">All Servers</option>
+          <option value="synthwave-club">Synthwave Club</option>
+          <option value="studio-42">Studio 42</option>
+        </select>
+        <div class="server-actions">
+          <a href="https://discord.com/oauth2/authorize?client_id=1234567890&permissions=274877990976&scope=bot+applications.commands" class="invite-btn" id="invite-bot-btn" target="_blank" rel="noopener">
+            + Invite Bot
+          </a>
+          <button type="button" class="config-trigger-btn" onclick="openConfigDrawer()">
+            Server Config
+          </button>
+        </div>
+      </div>
 
       <nav class="nav-index" aria-label="Main navigation">
-        <a href="#" class="nav-item active" aria-current="page">
+        <a href="#" class="nav-item active" aria-current="page" onclick="closeConfigDrawer(); return false;">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M9 18V5l12-2v13"/>
             <circle cx="6" cy="18" r="3"/>
@@ -43,7 +60,7 @@
           <span class="nav-label">Dashboard</span>
           <span class="nav-count" id="nav-count-songs">0</span>
         </a>
-        <a href="#" class="nav-item">
+        <a href="#" class="nav-item" onclick="closeConfigDrawer(); return false;">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="2" y="3" width="20" height="14" rx="2"/>
             <path d="M8 21h8"/>
@@ -52,19 +69,12 @@
           <span class="nav-label">Playlists</span>
           <span class="nav-count" id="nav-count-playlists">0</span>
         </a>
-        <a href="#" class="nav-item">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="12 6 12 12 16 14"/>
-          </svg>
-          <span class="nav-label">Activity</span>
-        </a>
-        <a href="#" class="nav-item">
+        <a href="#server-settings" class="nav-item" onclick="openConfigDrawer(); return false;">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3"/>
             <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
           </svg>
-          <span class="nav-label">Settings</span>
+          <span class="nav-label">Server Settings</span>
         </a>
       </nav>
 
@@ -176,7 +186,7 @@
         </div>
 
         <div id="songs-grid" class="songs-grid" aria-live="polite">
-          <article class="song-card" data-song-id="1" data-timestamp="2026-10-20T14:32:00Z">
+          <article class="song-card" data-song-id="1" data-guild="synthwave-club" data-timestamp="2026-10-20T14:32:00Z">
             <div class="song-header">
               <div class="song-title-row">
                 <span class="song-title">Never Gonna Give You Up</span>
@@ -196,13 +206,13 @@
                 YouTube
               </a>
               <a href="https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT" target="_blank" rel="noopener" class="platform-badge spotify" data-platform="spotify">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.521 17.34c-.63.405-1.416.628-2.172.654-.56.018-1.146-.086-1.587-.386-.206-.138-.707-.39-1.029-.57-.705-.39-1.446-.874-1.983-1.416-.65-.655-1.164-1.505-1.5-2.605-.29-1.027-.443-2.09-.443-3.143 0-1.28.146-2.402.45-3.356.526-1.16 1.26-2.072 2.21-2.75.292-.207.6-.385.92-.53.63-.29 1.418-.443 2.165-.443 1.047 0 1.97.16 2.73.472.76.312 1.447.82 1.98 1.54.247.333.427.756.527 1.27.18.98.27 2.05.27 3.187 0 1.197-.098 2.31-.288 3.34-.37 2.017-1.248 3.474-2.53 4.42z"/></svg>
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0z"/></svg>
                 Spotify
               </a>
             </div>
           </article>
 
-          <article class="song-card" data-song-id="2" data-timestamp="2026-10-20T13:18:00Z">
+          <article class="song-card" data-song-id="2" data-guild="studio-42" data-timestamp="2026-10-20T13:18:00Z">
             <div class="song-header">
               <div class="song-title-row">
                 <span class="song-title">Bohemian Rhapsody</span>
@@ -218,11 +228,11 @@
             </div>
             <div class="song-platforms">
               <a href="https://www.youtube.com/watch?v=fJ9rUzIMcZQ" target="_blank" rel="noopener" class="platform-badge youtube" data-platform="youtube">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 7.657 0 12 0 12s0 4.343.502 5.814a3.016 3.016 0 0 0 2.122 2.136C4.495 20.456 12 20.456 12 20.456s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 16.343 24 12 24 12s0-4.343-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136z"/></svg>
                 YouTube
               </a>
               <a href="https://music.apple.com/us/song/bohemian-rhapsody/1440806723" target="_blank" rel="noopener" class="platform-badge apple_music" data-platform="apple_music">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.724 4.004c-.306-.503-.834-.66-1.36-.36l-3.4 2.034a.77.77 0 0 0-.28.906l4.168 8.332c.203.41.728.553 1.14.307a1.62 1.62 0 0 0 .62-1.85l-3.44-6.883c-.14-.286-.477-.38-.76-.202z"/></svg>
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.724 4.004c-.306-.503-.834-.66-1.36-.36l-3.4 2.034z"/></svg>
                 Apple Music
               </a>
               <a href="https://www.deezer.com/track/3135556" target="_blank" rel="noopener" class="platform-badge deezer" data-platform="deezer">
@@ -232,7 +242,7 @@
             </div>
           </article>
 
-          <article class="song-card" data-song-id="3" data-timestamp="2026-10-20T11:45:00Z">
+          <article class="song-card" data-song-id="3" data-guild="synthwave-club" data-timestamp="2026-10-20T11:45:00Z">
             <div class="song-header">
               <div class="song-title-row">
                 <span class="song-title">Midnight City</span>
@@ -252,13 +262,13 @@
                 Spotify
               </a>
               <a href="https://soundcloud.com/m83/midnight-city" target="_blank" rel="noopener" class="platform-badge soundcloud" data-platform="soundcloud">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.014 4.024c-4.54 0-7.51 3.656-7.51 7.988 0 2.24.967 4.184 2.492 5.604z"/></svg>
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.014 4.024c-4.54 0-7.51 3.656-7.51 7.988z"/></svg>
                 SoundCloud
               </a>
             </div>
           </article>
 
-          <article class="song-card" data-song-id="4" data-timestamp="2026-10-20T09:22:00Z">
+          <article class="song-card" data-song-id="4" data-guild="studio-42" data-timestamp="2026-10-20T09:22:00Z">
             <div class="song-header">
               <div class="song-title-row">
                 <span class="song-title">Teardrop</span>
@@ -284,7 +294,7 @@
             </div>
           </article>
 
-          <article class="song-card" data-song-id="5" data-timestamp="2026-10-19T22:07:00Z">
+          <article class="song-card" data-song-id="5" data-guild="studio-42" data-timestamp="2026-10-19T22:07:00Z">
             <div class="song-header">
               <div class="song-title-row">
                 <span class="song-title">Karma Police</span>
@@ -310,7 +320,7 @@
             </div>
           </article>
 
-          <article class="song-card" data-song-id="6" data-timestamp="2026-10-19T18:14:00Z">
+          <article class="song-card" data-song-id="6" data-guild="synthwave-club" data-timestamp="2026-10-19T18:14:00Z">
             <div class="song-header">
               <div class="song-title-row">
                 <span class="song-title">Nightcall</span>
@@ -355,6 +365,82 @@
     </main>
   </div>
 
+  <!-- Slide-over Server Configuration Drawer -->
+  <div class="drawer-backdrop" id="drawer-backdrop" onclick="closeConfigDrawer()" hidden></div>
+  <aside class="config-drawer" id="config-drawer" aria-labelledby="drawer-title" aria-hidden="true">
+    <div class="drawer-header">
+      <div>
+        <h2 class="drawer-title" id="drawer-title">Server Configuration</h2>
+        <p class="drawer-subtitle">Per-server channel filter, platform rules & bot invite</p>
+      </div>
+      <button type="button" class="drawer-close-btn" onclick="closeConfigDrawer()" aria-label="Close server settings">✕</button>
+    </div>
+
+    <div class="drawer-body">
+      <div class="form-group">
+        <label class="field-label" for="cfg-guild-id">Server Profile</label>
+        <div class="server-pills">
+          <button type="button" class="server-pill-btn" onclick="loadDemoServerProfile('synthwave-club')">Synthwave Club</button>
+          <button type="button" class="server-pill-btn" onclick="loadDemoServerProfile('studio-42')">Studio 42</button>
+        </div>
+        <input type="text" id="cfg-guild-id" class="text-input" value="synthwave-club">
+      </div>
+
+      <div class="invite-banner">
+        <div>
+          <strong>Add Bot to Server</strong>
+          <p>Grants view, send, thread card & slash command permissions.</p>
+        </div>
+        <a href="https://discord.com/oauth2/authorize?client_id=1234567890&permissions=274877990976&scope=bot+applications.commands" class="invite-btn" target="_blank" rel="noopener">+ Invite Bot</a>
+      </div>
+
+      <div class="form-group">
+        <label class="field-label" for="cfg-server-name">Server Display Name</label>
+        <input type="text" id="cfg-server-name" class="text-input" value="Synthwave Club">
+      </div>
+
+      <div class="form-group">
+        <label class="field-label" for="cfg-playlist-prefix">Playlist Title Prefix</label>
+        <input type="text" id="cfg-playlist-prefix" class="text-input" value="Synthwave Queue">
+      </div>
+
+      <div class="form-group">
+        <label class="field-label" for="cfg-allowed-channels">Monitored Channel IDs (comma-separated, empty = all)</label>
+        <input type="text" id="cfg-allowed-channels" class="text-input" value="109238471, 109238472">
+      </div>
+
+      <div class="form-group">
+        <span class="field-label">Enabled Platforms (none selected = allow all)</span>
+        <div class="platform-toggles" id="cfg-platforms">
+          <label class="check-chip"><input type="checkbox" value="youtube" checked><span>YouTube</span></label>
+          <label class="check-chip"><input type="checkbox" value="youtube_music"><span>YT Music</span></label>
+          <label class="check-chip"><input type="checkbox" value="spotify" checked><span>Spotify</span></label>
+          <label class="check-chip"><input type="checkbox" value="apple_music"><span>Apple Music</span></label>
+          <label class="check-chip"><input type="checkbox" value="deezer" checked><span>Deezer</span></label>
+          <label class="check-chip"><input type="checkbox" value="soundcloud" checked><span>SoundCloud</span></label>
+          <label class="check-chip"><input type="checkbox" value="bandcamp"><span>Bandcamp</span></label>
+          <label class="check-chip"><input type="checkbox" value="tidal"><span>Tidal</span></label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="switch-row">
+          <input type="checkbox" id="cfg-thread-card" checked>
+          <span>Post & update live summary card in channel thread</span>
+        </label>
+        <label class="switch-row">
+          <input type="checkbox" id="cfg-auto-sync" checked>
+          <span>Auto-sync tracks to YouTube & Spotify playlists</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="drawer-footer">
+      <span class="cfg-status" id="cfg-status" role="status" aria-live="polite"></span>
+      <button type="button" class="save-config-btn" onclick="saveDemoServerProfile()">Save Server Profile</button>
+    </div>
+  </aside>
+
   <div class="auth-toast" id="auth-toast" role="status" aria-live="polite" hidden>
     <span>Sign in with Discord to vote for tracks.</span>
     <button type="button" class="auth-toast-action" onclick="demoLogin()">Log in</button>
@@ -370,6 +456,64 @@
       const next = current === 'dark' ? 'light' : 'dark';
       html.setAttribute('data-theme', next);
       localStorage.setItem('theme', next);
+    }
+
+    function openConfigDrawer() {
+      const drawer = document.getElementById('config-drawer');
+      const backdrop = document.getElementById('drawer-backdrop');
+      if (!drawer || !backdrop) return;
+      backdrop.hidden = false;
+      backdrop.setAttribute('data-open', 'true');
+      drawer.setAttribute('data-open', 'true');
+      drawer.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeConfigDrawer() {
+      const drawer = document.getElementById('config-drawer');
+      const backdrop = document.getElementById('drawer-backdrop');
+      if (!drawer || !backdrop) return;
+      drawer.removeAttribute('data-open');
+      drawer.setAttribute('aria-hidden', 'true');
+      backdrop.removeAttribute('data-open');
+      setTimeout(() => { backdrop.hidden = true; }, 220);
+    }
+
+    function loadDemoServerProfile(gid) {
+      document.getElementById('cfg-guild-id').value = gid;
+      const saved = JSON.parse(localStorage.getItem(`demo_srv_${gid}`) || 'null');
+      const defaults = gid === 'studio-42'
+        ? { name: 'Studio 42', prefix: 'Studio 42 Picks', channels: '888001, 888002' }
+        : { name: 'Synthwave Club', prefix: 'Synthwave Queue', channels: '109238471, 109238472' };
+      const cfg = saved || defaults;
+      document.getElementById('cfg-server-name').value = cfg.name;
+      document.getElementById('cfg-playlist-prefix').value = cfg.prefix;
+      document.getElementById('cfg-allowed-channels').value = cfg.channels;
+      document.getElementById('cfg-status').textContent = `Loaded ${cfg.name} profile.`;
+    }
+
+    function saveDemoServerProfile() {
+      const gid = document.getElementById('cfg-guild-id').value.trim() || 'synthwave-club';
+      const cfg = {
+        name: document.getElementById('cfg-server-name').value.trim(),
+        prefix: document.getElementById('cfg-playlist-prefix').value.trim(),
+        channels: document.getElementById('cfg-allowed-channels').value.trim(),
+      };
+      localStorage.setItem(`demo_srv_${gid}`, JSON.stringify(cfg));
+      document.getElementById('cfg-status').textContent = `Saved ${cfg.name} profile.`;
+    }
+
+    function filterDemoServer(guildId) {
+      const cards = document.querySelectorAll('#songs-grid .song-card');
+      cards.forEach(card => {
+        if (!guildId || card.dataset.guild === guildId) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+      if (guildId) loadDemoServerProfile(guildId);
+      updateStats();
+      updateEmptyState();
     }
 
     function isDemoLoggedIn() {
@@ -547,13 +691,13 @@
 
       const icons = {
         youtube: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 7.657 0 12 0 12s0 4.343.502 5.814a3.016 3.016 0 0 0 2.122 2.136C4.495 20.456 12 20.456 12 20.456s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 16.343 24 12 24 12s0-4.343-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>',
-        youtube_music: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 7.657 0 12 0 12s0 4.343.502 5.814a3.016 3.016 0 0 0 2.122 2.136C4.495 20.456 12 20.456 12 20.456s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 16.343 24 12 24 12s0-4.343-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>',
+        youtube_music: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136z"/></svg>',
         spotify: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0z"/></svg>',
-        apple_music: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.724 4.004c-.306-.503-.834-.66-1.36-.36l-3.4 2.034a.77.77 0 0 0-.28.906l4.168 8.332c.203.41.728.553 1.14.307a1.62 1.62 0 0 0 .62-1.85l-3.44-6.883c-.14-.286-.477-.38-.76-.202z"/></svg>',
-        soundcloud: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.014 4.024c-4.54 0-7.51 3.656-7.51 7.988 0 2.24.967 4.184 2.492 5.604z"/></svg>',
+        apple_music: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.724 4.004c-.306-.503-.834-.66-1.36-.36l-3.4 2.034z"/></svg>',
+        soundcloud: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.014 4.024c-4.54 0-7.51 3.656-7.51 7.988z"/></svg>',
         bandcamp: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v16l8-8z"/></svg>',
         deezer: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.134 11.265v-3.884h3.63v3.884h-3.63z"/></svg>',
-        tidal: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 24c6.627 0 12-5.373 12-12S18.627 0 12 0 0 5.373 0 12s5.373 12 12 12z"/></svg>',
+        tidal: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>',
       };
 
       platformSet.forEach(platform => {
@@ -562,7 +706,7 @@
         btn.type = 'button';
         btn.className = 'filter-chip';
         btn.dataset.platform = platform;
-        btn.onclick = (e) => filterPlatform(e.target.closest('.filter-chip'), platform);
+        btn.onclick = (e) => filterPlatform(e.target.closest('.filter-chip'));
         btn.innerHTML = `${icon}<span>${platform.replace('_', ' ')}</span>`;
         container.appendChild(btn);
       });

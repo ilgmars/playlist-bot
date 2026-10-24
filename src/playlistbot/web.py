@@ -8,7 +8,7 @@ import hmac
 import html
 import json
 import os
-import secrets
+import secrets  # cryptographic nonce generator
 import time
 from pathlib import Path
 from typing import Any
@@ -23,6 +23,17 @@ from starlette.requests import Request
 
 from .db import get_channels, get_songs_newest_first, get_stats, toggle_vote
 from .playlist import generate_m3u
+from .servers import (
+    build_bot_invite_url,
+    can_user_manage_guild,
+    get_guild_channels,
+    get_server_profile,
+    is_valid_id,
+    list_servers,
+    save_user_guilds,
+    upsert_server_profile,
+    validate_server_config_payload,
+)
 
 app = FastAPI(title="Playlist Bot Dashboard", version="0.1.0")
 
@@ -124,6 +135,7 @@ def _render_song_card(song: dict[str, Any], is_logged_in: bool = False) -> str:
     artist = html.escape(str(song.get("artist", "")), quote=True)
     created_at = html.escape(str(song.get("created_at", "")), quote=True)
     channel_id = html.escape(str(song.get("channel_id") or ""), quote=True)
+    guild_id = html.escape(str(song.get("guild_id") or ""), quote=True)
     vote_count = int(song.get("vote_count") or 0)
     voted = bool(song.get("user_voted"))
     badges: list[str] = []
@@ -139,7 +151,8 @@ def _render_song_card(song: dict[str, Any], is_logged_in: bool = False) -> str:
     link_tags = " ".join(badges)
     vote_html = _render_vote_button(song_id, vote_count, voted, is_logged_in)
     return (
-        f'<article class="song-card" data-channel="{channel_id}" data-votes="{vote_count}">\n'
+        f'<article class="song-card" data-channel="{channel_id}" '
+        f'data-guild="{guild_id}" data-votes="{vote_count}">\n'
         f'  <div class="song-header">\n'
         f'    <div class="song-title-row">\n'
         f'      <strong class="song-title">{title}</strong>\n'
@@ -154,22 +167,30 @@ def _render_song_card(song: dict[str, Any], is_logged_in: bool = False) -> str:
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request, channel_id: str | None = None):
+async def index(
+    request: Request,
+    channel_id: str | None = None,
+    guild_id: str | None = None,
+):
     """Main dashboard page showing the latest songs, newest first."""
     user = _get_current_user(request)
     songs = await get_songs_newest_first(
         limit=50,
         channel_id=channel_id,
         current_user_id=user["id"] if user else None,
+        guild_id=guild_id,
     )
-    channels = await get_channels()
+    channels = await get_channels(guild_id=guild_id)
+    servers = await list_servers(user=user)
     return templates.TemplateResponse(
         request,
         "index.html",
         {
             "songs": songs,
             "channels": channels,
+            "servers": servers,
             "active_channel": channel_id or "",
+            "active_guild": guild_id or "",
             "user": user,
         },
     )
@@ -179,6 +200,7 @@ async def index(request: Request, channel_id: str | None = None):
 async def api_songs(
     request: Request,
     channel_id: str | None = None,
+    guild_id: str | None = None,
     sort: str = "newest",
 ):
     """HTMX fragment: returns the latest songs as HTML."""
@@ -188,6 +210,7 @@ async def api_songs(
         channel_id=channel_id,
         current_user_id=user["id"] if user else None,
         sort_by="votes" if sort == "votes" else "newest",
+        guild_id=guild_id,
     )
     if not songs:
         return '<p class="empty">No songs collected yet. Post a music link in Discord!</p>'
@@ -221,6 +244,80 @@ async def api_vote_song(request: Request, song_id: str):
     return result
 
 
+@app.get("/api/invite")
+async def api_invite(guild_id: str | None = None):
+    """Return the least-privilege Discord OAuth2 bot invite URL."""
+    client_id = os.environ.get("DISCORD_CLIENT_ID", "")
+    if not client_id:
+        return JSONResponse(
+            {"error": "DISCORD_CLIENT_ID is not configured"},
+            status_code=503,
+        )
+    return {
+        "invite_url": build_bot_invite_url(client_id, guild_id=guild_id),
+        "guild_id": guild_id,
+    }
+
+
+@app.get("/invite")
+async def invite_redirect(guild_id: str | None = None):
+    """Redirect directly to the Discord OAuth2 bot authorization screen."""
+    client_id = os.environ.get("DISCORD_CLIENT_ID", "")
+    if not client_id:
+        return JSONResponse(
+            {"error": "DISCORD_CLIENT_ID is not configured"},
+            status_code=503,
+        )
+    return RedirectResponse(build_bot_invite_url(client_id, guild_id=guild_id), status_code=302)
+
+
+@app.get("/api/servers")
+async def api_servers(request: Request):
+    """Return known Discord servers and management permissions for the current user."""
+    user = _get_current_user(request)
+    return {"servers": await list_servers(user=user)}
+
+
+@app.get("/api/servers/{guild_id}/config")
+async def api_get_server_config(request: Request, guild_id: str):
+    """Return the configuration profile and known channels for a Discord server."""
+    if not is_valid_id(guild_id):
+        return JSONResponse({"error": "Invalid guild_id"}, status_code=400)
+    user = _get_current_user(request)
+    profile = await get_server_profile(guild_id)
+    channels = await get_guild_channels(guild_id)
+    can_manage = await can_user_manage_guild(user, guild_id)
+    return {
+        **profile,
+        "available_channels": channels,
+        "can_manage": can_manage,
+    }
+
+
+@app.put("/api/servers/{guild_id}/config")
+async def api_update_server_config(request: Request, guild_id: str):
+    """Update a Discord server's configuration profile (requires MANAGE_GUILD)."""
+    user = _get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Authentication required"}, status_code=401)
+    if not await can_user_manage_guild(user, guild_id):
+        return JSONResponse(
+            {"error": "Manage Server permission required for this Discord server"},
+            status_code=403,
+        )
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
+
+    clean, err = validate_server_config_payload(guild_id, payload)
+    if err or clean is None:
+        return JSONResponse({"error": err or "Invalid configuration"}, status_code=400)
+
+    updated = await upsert_server_profile(guild_id=guild_id, **clean)
+    return updated
+
+
 @app.get("/auth/discord")
 async def auth_discord(request: Request):
     """Redirect the user to Discord OAuth2 authorization screen."""
@@ -240,13 +337,26 @@ async def auth_discord(request: Request):
             "client_id": client_id,
             "redirect_uri": redirect_uri,
             "response_type": "code",
-            "scope": "identify",
+            "scope": "identify guilds",
             "state": state_val,
         }
     )
     resp = RedirectResponse(f"https://discord.com/api/oauth2/authorize?{params}", status_code=302)
     resp.set_cookie(STATE_COOKIE, state_val, httponly=True, max_age=600, samesite="lax")
     return resp
+
+
+async def _fetch_discord_guilds(client: httpx.AsyncClient, bearer: str, uid: str) -> None:
+    """Fetch and store the authenticated Discord user's guild memberships if available."""
+    try:
+        g_resp = await client.get(
+            "https://discord.com/api/users/@me/guilds",
+            headers={"Authorization": f"Bearer {bearer}"},
+        )
+        if g_resp.status_code == 200 and isinstance(g_resp.json(), list):
+            await save_user_guilds(uid, g_resp.json())
+    except Exception:
+        return
 
 
 async def _exchange_discord_code(code: str, redirect_uri: str) -> dict[str, Any] | None:
@@ -280,6 +390,7 @@ async def _exchange_discord_code(code: str, redirect_uri: str) -> dict[str, Any]
             return None
         profile = me_resp.json()
         uid = str(profile.get("id", ""))
+        await _fetch_discord_guilds(client, access_val, uid)
         avatar_hash = profile.get("avatar")
         avatar_url = (
             f"https://cdn.discordapp.com/avatars/{uid}/{avatar_hash}.png?size=64"
@@ -339,10 +450,21 @@ async def auth_me(request: Request):
 
 
 @app.get("/api/export.m3u")
-async def api_export_m3u(channel_id: str | None = None):
+async def api_export_m3u(
+    channel_id: str | None = None,
+    guild_id: str | None = None,
+):
     """Download the collected songs as an Extended M3U (.m3u) playlist file."""
-    songs = await get_songs_newest_first(limit=500, channel_id=channel_id)
-    name = f"Discord Playlist #{channel_id}" if channel_id else "Discord Playlist"
+    songs = await get_songs_newest_first(
+        limit=500,
+        channel_id=channel_id,
+        guild_id=guild_id,
+    )
+    prefix = "Discord Playlist"
+    if guild_id:
+        prof = await get_server_profile(guild_id)
+        prefix = prof.get("playlist_prefix") or prefix
+    name = f"{prefix} #{channel_id}" if channel_id else prefix
     m3u_content = generate_m3u(songs, title=name)
     return Response(
         content=m3u_content,
@@ -352,15 +474,18 @@ async def api_export_m3u(channel_id: str | None = None):
 
 
 @app.get("/api/stats")
-async def api_stats(channel_id: str | None = None):
+async def api_stats(
+    channel_id: str | None = None,
+    guild_id: str | None = None,
+):
     """Return song, link, platform, and contributor statistics as JSON."""
-    return await get_stats(channel_id=channel_id)
+    return await get_stats(channel_id=channel_id, guild_id=guild_id)
 
 
 @app.get("/api/channels")
-async def api_channels():
+async def api_channels(guild_id: str | None = None):
     """Return distinct channel IDs with songs or playlists."""
-    return {"channels": await get_channels()}
+    return {"channels": await get_channels(guild_id=guild_id)}
 
 
 @app.get("/healthz")

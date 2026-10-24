@@ -1,4 +1,4 @@
-"""Discord bot entry point — listens for music links and manages playists.
+"""Discord bot entry point — listens for music links and manages playlists.
 
 Key design: the bot posts a single 'card' message in a thread per channel.
 On each new song, it edits that message in place (no duplicate messages).
@@ -34,6 +34,11 @@ from .link_parser import ParsedLink, Platform, extract_links
 from .metadata import extract_metadata
 from .models import SongLink
 from .playlist import PlaylistManager, generate_m3u
+from .servers import (
+    get_server_profile_cached,
+    sync_guild_channels,
+    upsert_server_profile,
+)
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +56,57 @@ def _get_allowed_channels() -> set[str]:
     single = os.environ.get("DISCORD_CHANNEL_ID", "")
     combined = f"{raw},{single}" if raw and single else (raw or single)
     return {cid.strip() for cid in combined.split(",") if cid.strip()}
+
+
+def _extract_guild_id(obj: Any) -> str | None:
+    """Extract a concrete guild_id string from a Message or Interaction if present."""
+    guild = getattr(obj, "guild", None)
+    raw_id = getattr(guild, "id", None) if guild is not None else getattr(obj, "guild_id", None)
+    if isinstance(raw_id, int | str) and str(raw_id).strip():
+        return str(raw_id).strip()
+    return None
+
+
+async def _resolve_guild_policy(
+    message: Message,
+    channel_id: str,
+) -> tuple[bool, str | None, set[str], bool, bool]:
+    """Return (allowed, guild_id, enabled_platforms, auto_sync, thread_card) from cache."""
+    guild_id = _extract_guild_id(message)
+    if guild_id:
+        prof = await get_server_profile_cached(guild_id)
+        srv_chans = {str(c) for c in (prof.get("allowed_channels") or []) if c}
+        allowed_chans = srv_chans if srv_chans else _get_allowed_channels()
+        if allowed_chans and channel_id not in allowed_chans:
+            return False, guild_id, set(), False, False
+        enabled_plats = {str(p) for p in (prof.get("enabled_platforms") or []) if p}
+        auto_sync = bool(prof.get("auto_sync_playlists", True))
+        thread_card = bool(prof.get("thread_card_enabled", True))
+        return True, guild_id, enabled_plats, auto_sync, thread_card
+
+    allowed_chans = _get_allowed_channels()
+    if allowed_chans and channel_id not in allowed_chans:
+        return False, None, set(), False, False
+    return True, None, set(), True, True
+
+
+async def _register_guild(guild: Any) -> None:
+    """Register or refresh a Discord guild and its text channels in SQLite."""
+    raw_id = getattr(guild, "id", None)
+    if not isinstance(raw_id, int | str):
+        return
+    gid = str(raw_id)
+    gname = str(getattr(guild, "name", "") or f"Server {gid}")
+    icon_obj = getattr(guild, "icon", None)
+    icon_url = str(getattr(icon_obj, "url", "") or "") if icon_obj else ""
+    await upsert_server_profile(guild_id=gid, name=gname, icon_url=icon_url or None)
+    text_chans = [
+        {"id": str(ch.id), "name": str(ch.name)}
+        for ch in (getattr(guild, "text_channels", None) or [])
+        if isinstance(getattr(ch, "id", None), int | str)
+    ]
+    if text_chans:
+        await sync_guild_channels(gid, text_chans)
 
 
 def _build_card_embed(
@@ -76,20 +132,15 @@ def _build_card_embed(
 
 async def _get_or_create_thread(channel: TextChannel, song_title: str) -> Thread:
     """Look for an existing thread or create one called 'playlist-track'."""
-    existing = None
     for thread in channel.threads:
         if thread.name == "playlist-track" and not thread.archived:
-            existing = thread
-            break
-    if existing:
-        return existing
+            return thread
 
-    thread = await channel.create_thread(
+    return await channel.create_thread(
         name="playlist-track",
         auto_archive_duration=4320,
         reason="Auto-created playlist tracking thread",
     )
-    return thread
 
 
 async def _send_or_update_card(thread: Thread, embed: discord.Embed) -> Message:
@@ -103,8 +154,7 @@ async def _send_or_update_card(thread: Thread, embed: discord.Embed) -> Message:
         except (discord.NotFound, discord.Forbidden):
             log.warning("Could not edit bot message %s, will send new", state["last_message_id"])
 
-    msg = await thread.send(embed=embed)
-    return msg
+    return await thread.send(embed=embed)
 
 
 async def _save_and_sync_songs(
@@ -112,8 +162,10 @@ async def _save_and_sync_songs(
     metadatas: list[Any],
     message: Message,
     channel_id: str,
+    guild_id: str | None = None,
+    auto_sync: bool = True,
 ) -> list[dict[str, Any]]:
-    """Persist new songs in DB and sync them to channel playlists."""
+    """Persist new songs in DB and optionally sync them to channel playlists."""
     saved_songs: list[dict[str, Any]] = []
     for link, meta in zip(new_links, metadatas, strict=True):
         if meta is None:
@@ -129,20 +181,11 @@ async def _save_and_sync_songs(
             added_by=str(message.author),
             message_id=str(message.id),
             channel_id=channel_id,
+            guild_id=guild_id,
         )
 
-        for platform in (Platform.YOUTUBE, Platform.SPOTIFY):
-            playlist_id = await _get_playlist_id(channel_id, platform)
-            if playlist_id and await asyncio.to_thread(
-                playlist_mgr.add_to_playlist,
-                platform=platform,
-                channel_id=channel_id,
-                playlist_id=playlist_id,
-                link=link,
-            ):
-                playlist_url = await _get_playlist_url(channel_id, platform)
-                if playlist_url:
-                    await update_playlist_url(song_id, platform, playlist_url)
+        if auto_sync:
+            await _sync_song_to_playlists(song_id, channel_id, link)
 
         saved_songs.append(
             {
@@ -155,8 +198,26 @@ async def _save_and_sync_songs(
     return saved_songs
 
 
+async def _sync_song_to_playlists(song_id: str, channel_id: str, link: ParsedLink) -> None:
+    """Sync a single parsed link to configured YouTube and Spotify playlists."""
+    for platform in (Platform.YOUTUBE, Platform.SPOTIFY):
+        playlist_id = await _get_playlist_id(channel_id, platform)
+        if playlist_id and await asyncio.to_thread(
+            playlist_mgr.add_to_playlist,
+            platform=platform,
+            channel_id=channel_id,
+            playlist_id=playlist_id,
+            link=link,
+        ):
+            playlist_url = await _get_playlist_url(channel_id, platform)
+            if playlist_url:
+                await update_playlist_url(song_id, platform, playlist_url)
+
+
 @bot.event
 async def on_ready():
+    for guild in getattr(bot, "guilds", None) or []:
+        await _register_guild(guild)
     tree = getattr(bot, "tree", None)
     if tree is not None and getattr(bot, "application_id", None):
         await tree.sync()
@@ -164,32 +225,12 @@ async def on_ready():
 
 
 @bot.event
-async def on_message(message: Message):
-    if message.author.bot:
-        return
+async def on_guild_join(guild: Any):
+    await _register_guild(guild)
 
-    allowed = _get_allowed_channels()
-    if allowed and str(message.channel.id) not in allowed:
-        return
 
-    await bot.process_commands(message)
-
-    links = extract_links(message.content)
-    if not links:
-        return
-
-    new_links = [link for link in links if not await is_known_link(link.canonical_url)]
-    if not new_links:
-        return
-
-    channel: TextChannel = message.channel  # type: ignore[assignment]
-    metadatas = await asyncio.gather(*(extract_metadata(link) for link in new_links))
-    thread = await _get_or_create_thread(channel, "playlist-track")
-    saved_songs = await _save_and_sync_songs(new_links, metadatas, message, str(channel.id))
-    if not saved_songs:
-        return
-
-    latest = saved_songs[-1]
+async def _update_thread_card(thread: Thread, channel_id: str, latest: dict[str, Any]) -> None:
+    """Update the playlist thread card embed and persist thread state."""
     total = await _get_song_count()
     embed = _build_card_embed(
         song_title=latest["title"],
@@ -200,12 +241,51 @@ async def on_message(message: Message):
     msg = await _send_or_update_card(thread, embed)
     await save_thread_state(
         thread_id=thread.id,
-        channel_id=str(channel.id),
+        channel_id=channel_id,
         last_message_id=str(msg.id),
         total_songs=total,
         latest_title=latest["title"],
         latest_url=latest["links"][0]["original_url"] if latest["links"] else None,
     )
+
+
+@bot.event
+async def on_message(message: Message):
+    if message.author.bot:
+        return
+
+    channel_id = str(message.channel.id)
+    allowed, guild_id, enabled_plats, auto_sync, thread_card = await _resolve_guild_policy(
+        message, channel_id
+    )
+    if not allowed:
+        return
+
+    await bot.process_commands(message)
+
+    links = extract_links(message.content)
+    if enabled_plats:
+        links = [lnk for lnk in links if lnk.platform.value in enabled_plats]
+    if not links:
+        return
+
+    new_links = [link for link in links if not await is_known_link(link.canonical_url)]
+    if not new_links:
+        return
+
+    channel: TextChannel = message.channel  # type: ignore[assignment]
+    metadatas = await asyncio.gather(*(extract_metadata(link) for link in new_links))
+    thread = await _get_or_create_thread(channel, "playlist-track") if thread_card else None
+    saved_songs = await _save_and_sync_songs(
+        new_links,
+        metadatas,
+        message,
+        channel_id,
+        guild_id=guild_id,
+        auto_sync=auto_sync,
+    )
+    if saved_songs and thread is not None:
+        await _update_thread_card(thread, channel_id, saved_songs[-1])
 
 
 @bot.tree.command(name="playlist-create", description="Create or ensure playlists for this channel")
@@ -323,7 +403,6 @@ async def _get_playlist_id(channel_id: str, platform: Platform) -> str | None:
         if rows:
             return rows[0]["playlist_id"]
 
-    # No playlist yet — create one
     if platform == Platform.SPOTIFY:
         pid = playlist_mgr.create_spotify_playlist(channel_id)
     elif platform == Platform.YOUTUBE:
@@ -373,8 +452,6 @@ async def _create_missing_playlists(channel_id: str) -> None:
 
 def run_bot(token: str) -> None:
     """Entry point for running the bot."""
-    import asyncio
-
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     channel_id = str(os.environ.get("DISCORD_CHANNEL_ID", ""))

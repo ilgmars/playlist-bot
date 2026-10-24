@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS songs (
     playlist_ids_json TEXT NOT NULL DEFAULT '{}',
     added_by        TEXT,
     message_id      TEXT,
-    channel_id      TEXT
+    channel_id      TEXT,
+    guild_id        TEXT
 );
 
 CREATE TABLE IF NOT EXISTS threads (
@@ -67,15 +68,47 @@ CREATE TABLE IF NOT EXISTS votes (
     created_at  TEXT NOT NULL,
     PRIMARY KEY (song_id, user_id)
 );
+
+CREATE TABLE IF NOT EXISTS servers (
+    guild_id            TEXT PRIMARY KEY,
+    name                TEXT NOT NULL,
+    icon_url            TEXT,
+    allowed_channels    TEXT NOT NULL DEFAULT '[]',
+    enabled_platforms   TEXT NOT NULL DEFAULT '[]',
+    auto_sync_playlists INTEGER NOT NULL DEFAULT 1,
+    thread_card_enabled INTEGER NOT NULL DEFAULT 1,
+    playlist_prefix     TEXT NOT NULL DEFAULT 'Discord Playlist',
+    updated_at          TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS guild_channels (
+    channel_id  TEXT PRIMARY KEY,
+    guild_id    TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_guilds (
+    user_id     TEXT NOT NULL,
+    guild_id    TEXT NOT NULL,
+    guild_name  TEXT NOT NULL,
+    guild_icon  TEXT,
+    can_manage  INTEGER NOT NULL DEFAULT 0,
+    updated_at  TEXT NOT NULL,
+    PRIMARY KEY (user_id, guild_id)
+);
 """
 
-# Index for ordering by newest first
+# Indexes for fast lookups and ordering
 INDEX_SQL = [
     "CREATE INDEX IF NOT EXISTS idx_songs_created ON songs(created_at DESC);",
     "CREATE INDEX IF NOT EXISTS idx_songs_status ON songs(status);",
     "CREATE INDEX IF NOT EXISTS idx_songs_channel ON songs(channel_id);",
+    "CREATE INDEX IF NOT EXISTS idx_songs_guild_created ON songs(guild_id, created_at DESC);",
     "CREATE INDEX IF NOT EXISTS idx_dedup_song ON dedup(song_id);",
     "CREATE INDEX IF NOT EXISTS idx_votes_song ON votes(song_id);",
+    "CREATE INDEX IF NOT EXISTS idx_guild_channels_guild ON guild_channels(guild_id);",
+    "CREATE INDEX IF NOT EXISTS idx_user_guilds_user ON user_guilds(user_id);",
 ]
 
 
@@ -118,8 +151,11 @@ async def init_db() -> None:
         conn.row_factory = aiosqlite.Row
         await conn.executescript(SCHEMA)
         cols = await conn.execute_fetchall("PRAGMA table_info(songs)")
-        if not any(c["name"] == "channel_id" for c in cols):
+        col_names = {c["name"] for c in cols}
+        if "channel_id" not in col_names:
             await conn.execute("ALTER TABLE songs ADD COLUMN channel_id TEXT")
+        if "guild_id" not in col_names:
+            await conn.execute("ALTER TABLE songs ADD COLUMN guild_id TEXT")
         for idx in INDEX_SQL:
             await conn.execute(idx)
         await conn.commit()
@@ -135,6 +171,7 @@ async def insert_song(
     duration: int | None = None,
     playlist_ids: dict[str, str] | None = None,
     channel_id: str | None = None,
+    guild_id: str | None = None,
 ) -> str:
     """Insert a song and its dedup links. Returns the song id."""
     song_id = str(uuid.uuid4())
@@ -146,8 +183,8 @@ async def insert_song(
         await db.execute(
             """INSERT INTO songs
             (id, title, artist, album, duration, status, created_at, updated_at,
-             links_json, playlist_ids_json, added_by, message_id, channel_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+             links_json, playlist_ids_json, added_by, message_id, channel_id, guild_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 song_id,
                 title,
@@ -162,6 +199,7 @@ async def insert_song(
                 added_by,
                 message_id,
                 channel_id,
+                guild_id,
             ),
         )
         for link in links:
@@ -206,27 +244,39 @@ async def _attach_votes(
         song["user_voted"] = sid in voted_ids
 
 
+def _build_songs_query(
+    channel_id: str | None,
+    guild_id: str | None,
+    limit: int,
+) -> tuple[str, tuple]:
+    cols = (
+        "SELECT id, title, artist, album, duration, created_at, links_json, "
+        "playlist_ids_json, added_by, channel_id, guild_id FROM songs "
+    )
+    order = "ORDER BY created_at DESC LIMIT ?"
+    if channel_id and guild_id:
+        return cols + "WHERE channel_id = ? AND guild_id = ? " + order, (
+            channel_id,
+            guild_id,
+            limit,
+        )
+    if channel_id:
+        return cols + "WHERE channel_id = ? " + order, (channel_id, limit)
+    if guild_id:
+        return cols + "WHERE guild_id = ? " + order, (guild_id, limit)
+    return cols + order, (limit,)
+
+
 async def get_songs_newest_first(
     limit: int = 50,
     channel_id: str | None = None,
     current_user_id: str | None = None,
     sort_by: str = "newest",
+    guild_id: str | None = None,
 ) -> list[dict]:
     async with get_db() as db:
-        if channel_id:
-            rows = await db.execute_fetchall(
-                "SELECT id, title, artist, album, duration, created_at, links_json, "
-                "playlist_ids_json, added_by, channel_id "
-                "FROM songs WHERE channel_id = ? ORDER BY created_at DESC LIMIT ?",
-                (channel_id, limit),
-            )
-        else:
-            rows = await db.execute_fetchall(
-                "SELECT id, title, artist, album, duration, created_at, links_json, "
-                "playlist_ids_json, added_by, channel_id "
-                "FROM songs ORDER BY created_at DESC LIMIT ?",
-                (limit,),
-            )
+        sql, params = _build_songs_query(channel_id, guild_id, limit)
+        rows = await db.execute_fetchall(sql, params)
         songs = [
             {
                 "id": row["id"],
@@ -239,6 +289,7 @@ async def get_songs_newest_first(
                 "playlist_urls": json.loads(row["playlist_ids_json"]),
                 "added_by": row["added_by"],
                 "channel_id": row["channel_id"],
+                "guild_id": row["guild_id"],
             }
             for row in rows
         ]
@@ -372,9 +423,20 @@ async def get_playlists(channel_id: str | None = None) -> list[dict]:
         return [dict(r) for r in rows]
 
 
-async def get_channels() -> list[str]:
-    """Return distinct non-empty channel_ids across songs, threads, and playlists."""
+async def get_channels(guild_id: str | None = None) -> list[str]:
+    """Return distinct non-empty channel_ids, optionally scoped to a guild_id."""
     async with get_db() as db:
+        if guild_id:
+            rows = await db.execute_fetchall(
+                "SELECT DISTINCT channel_id FROM ("
+                "  SELECT channel_id FROM songs "
+                "  WHERE guild_id = ? AND channel_id IS NOT NULL AND channel_id != '' "
+                "  UNION "
+                "  SELECT channel_id FROM guild_channels WHERE guild_id = ?"
+                ") ORDER BY channel_id",
+                (guild_id, guild_id),
+            )
+            return [r["channel_id"] for r in rows]
         rows = await db.execute_fetchall(
             "SELECT DISTINCT channel_id FROM ("
             "  SELECT channel_id FROM songs WHERE channel_id IS NOT NULL AND channel_id != '' "
@@ -387,9 +449,9 @@ async def get_channels() -> list[str]:
         return [r["channel_id"] for r in rows]
 
 
-async def get_stats(channel_id: str | None = None) -> dict:
+async def get_stats(channel_id: str | None = None, guild_id: str | None = None) -> dict:
     """Compute summary statistics for songs, platforms, links, and contributors."""
-    songs = await get_songs_newest_first(limit=500, channel_id=channel_id)
+    songs = await get_songs_newest_first(limit=500, channel_id=channel_id, guild_id=guild_id)
     platforms: dict[str, int] = {}
     contributors: dict[str, int] = {}
     total_links = 0

@@ -1019,13 +1019,517 @@ body {
   color: var(--fg-muted);
 }
 
+/* Server switcher & bot invite controls */
+.server-switcher {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.field-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--fg-subtle);
+}
+
+.server-select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    border-color var(--fast) ease,
+    background-color var(--fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .server-select:hover {
+    border-color: var(--fg-muted);
+  }
+}
+
+.server-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.invite-btn,
+.config-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    transform var(--fast) var(--ease-out),
+    border-color var(--fast) ease,
+    background-color var(--fast) ease,
+    color var(--fast) ease;
+}
+
+.invite-btn {
+  border-color: var(--discord);
+  color: var(--discord);
+}
+
+.invite-btn svg,
+.config-trigger-btn svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .invite-btn:hover {
+    background-color: var(--discord);
+    color: #FFFFFF;
+  }
+  .config-trigger-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background-color: var(--accent-subtle);
+  }
+}
+
+.invite-btn:active,
+.config-trigger-btn:active {
+  transform: scale(0.97);
+}
+
+/* Slide-over configuration drawer (Emil Kowalski --ease-drawer curve) */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background-color: rgba(17, 19, 21, 0.42);
+  opacity: 0;
+  transition: opacity 220ms var(--ease-out);
+}
+
+.drawer-backdrop[hidden] {
+  display: none;
+}
+
+.drawer-backdrop[data-open="true"] {
+  opacity: 1;
+}
+
+.config-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  width: min(440px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg);
+  border-left: 1px solid var(--border-strong);
+  transform: translateX(100%);
+  transition: transform 260ms var(--ease-drawer);
+}
+
+.config-drawer[hidden] {
+  display: none;
+}
+
+.config-drawer[data-open="true"] {
+  transform: translateX(0);
+}
+
+.drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.drawer-title {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+  text-wrap: balance;
+}
+
+.drawer-subtitle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+}
+
+.drawer-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg);
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition:
+    transform var(--fast) var(--ease-out),
+    border-color var(--fast) ease,
+    color var(--fast) ease;
+}
+
+.drawer-close-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .drawer-close-btn:hover {
+    border-color: var(--fg);
+    color: var(--fg);
+  }
+}
+
+.drawer-close-btn:active {
+  transform: scale(0.97);
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: var(--fg-muted);
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.guild-picker-row {
+  display: flex;
+  gap: 8px;
+}
+
+.text-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  transition: border-color var(--fast) ease;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.secondary-btn {
+  padding: 9px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-elevated);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    transform var(--fast) var(--ease-out),
+    border-color var(--fast) ease,
+    background-color var(--fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .secondary-btn:hover {
+    border-color: var(--fg);
+  }
+}
+
+.secondary-btn:active {
+  transform: scale(0.97);
+}
+
+.server-pills,
+.known-channels-list,
+.platform-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.server-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    transform var(--fast) var(--ease-out),
+    border-color var(--fast) ease,
+    color var(--fast) ease,
+    background-color var(--fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .server-pill-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
+.server-pill-btn:active {
+  transform: scale(0.97);
+}
+
+.server-pill-btn.active {
+  border-color: var(--accent);
+  background-color: var(--accent-subtle);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pill-badge {
+  font-size: 9px;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background-color: var(--border);
+  color: var(--fg);
+}
+
+.invite-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 12px 14px;
+  border: 1px solid var(--discord);
+  border-radius: var(--radius-sm);
+  background-color: var(--discord-subtle);
+}
+
+.invite-banner strong {
+  display: block;
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.invite-banner p {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.invite-banner-btn {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  background-color: var(--discord);
+  color: #FFFFFF;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    transform var(--fast) var(--ease-out),
+    background-color var(--fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .invite-banner-btn:hover {
+    background-color: var(--discord-hover);
+  }
+}
+
+.invite-banner-btn:active {
+  transform: scale(0.97);
+}
+
+.check-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    transform var(--fast) var(--ease-out),
+    border-color var(--fast) ease,
+    background-color var(--fast) ease;
+}
+
+.check-chip input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .check-chip:hover {
+    border-color: var(--border-strong);
+    background-color: var(--bg-elevated);
+  }
+}
+
+.check-chip:active {
+  transform: scale(0.97);
+}
+
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-elevated);
+  cursor: pointer;
+}
+
+.switch-row input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.switch-row strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.switch-row small {
+  display: block;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.drawer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--border);
+  background-color: var(--bg-elevated);
+}
+
+.cfg-status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.cfg-status[data-tone="ok"] {
+  color: #16A34A;
+}
+
+.cfg-status[data-tone="error"] {
+  color: var(--accent);
+}
+
+.save-config-btn {
+  padding: 9px 16px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background-color: var(--accent);
+  color: #FFFFFF;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    transform var(--fast) var(--ease-out),
+    background-color var(--fast) ease,
+    border-color var(--fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .save-config-btn:hover {
+    background-color: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
+}
+
+.save-config-btn:active {
+  transform: scale(0.97);
+}
+
 /* Reduced motion — remove transform motion, preserve subtle opacity/color transitions */
 @media (prefers-reduced-motion: reduce) {
   .song-card,
   .auth-toast,
+  .config-drawer,
+  .drawer-backdrop,
   .vote-btn,
   .vote-icon,
   .discord-login-btn,
+  .invite-btn,
+  .config-trigger-btn,
+  .drawer-close-btn,
+  .secondary-btn,
+  .server-pill-btn,
+  .invite-banner-btn,
+  .check-chip,
+  .save-config-btn,
   .export-btn,
   .sort-btn,
   .filter-chip,
@@ -1040,6 +1544,10 @@ body {
       color 150ms ease !important;
   }
 
+  .config-drawer:not([data-open="true"]) {
+    display: none;
+  }
+
   .status-dot::before {
     animation: none;
   }
@@ -1047,7 +1555,7 @@ body {
 
 /* Print styles */
 @media print {
-  .sidebar, .toolbar, .theme-toggle, .auth-toast { display: none; }
+  .sidebar, .toolbar, .theme-toggle, .auth-toast, .config-drawer, .drawer-backdrop { display: none; }
   .dashboard { grid-template-columns: 1fr; }
   .song-card { break-inside: avoid; }
 }
