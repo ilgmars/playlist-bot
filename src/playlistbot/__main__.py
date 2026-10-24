@@ -14,6 +14,9 @@ logging.basicConfig(
 
 def main():
     """Run either the Discord bot, the web server, or both."""
+    if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
+        logging.info("Usage: python -m playlistbot (set ROLE=web|bot|all)")
+        return
     role = os.environ.get("ROLE", "web")
 
     if role == "bot":

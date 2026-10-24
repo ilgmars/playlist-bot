@@ -132,6 +132,11 @@ class TestUnknownRole:
         assert excinfo.value.code == 1
         uvicorn_stub.run.assert_not_called()
 
+    def test_help_flag_returns_cleanly(self, monkeypatch, uvicorn_stub):
+        monkeypatch.setattr(sys, "argv", ["playlistbot", "--help"])
+        mainmod.main()
+        uvicorn_stub.run.assert_not_called()
+
 
 class TestModuleGuard:
     def test_runs_main_when_executed_as_script(self, monkeypatch, uvicorn_stub):

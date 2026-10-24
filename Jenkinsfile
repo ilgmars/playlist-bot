@@ -15,8 +15,8 @@ pipeline {
         stage('Build Images') {
             steps {
                 sh '''
-                    docker build --target test -t "${TEST_IMAGE}" .
-                    docker build --target runtime -t "${RUNTIME_IMAGE}" .
+                    docker build --network host --target test -t "${TEST_IMAGE}" .
+                    docker build --network host --target runtime -t "${RUNTIME_IMAGE}" .
                 '''
             }
         }
@@ -34,7 +34,7 @@ pipeline {
             steps {
                 sh '''
                     docker run --rm --entrypoint python "${TEST_IMAGE}" \
-                        -m pytest --cov=src/playlistbot --cov-fail-under=80 --cov-report=term-missing -q
+                        -m pytest --cov=playlistbot --cov-fail-under=80 --cov-report=term-missing -q
                 '''
             }
         }
@@ -81,6 +81,8 @@ if bad:
             steps {
                 sh '''
                     docker run --rm "${RUNTIME_IMAGE}" --help
+                    docker run --rm --entrypoint python "${RUNTIME_IMAGE}" \
+                        -c "import playlistbot.web, playlistbot.bot, playlistbot.playlist"
                 '''
             }
         }
@@ -103,7 +105,6 @@ if bad:
     post {
         always {
             sh 'docker rmi "${TEST_IMAGE}" 2>/dev/null || true'
-            cleanWs()
         }
         success {
             echo 'Build, tests, security scans, and review passed!'
