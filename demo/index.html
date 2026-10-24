@@ -447,8 +447,19 @@
         </div>
       </section>
 
+      <section class="deploy-strip" aria-labelledby="deploy-heading">
+        <div class="deploy-strip-left">
+          <h3 id="deploy-heading" class="deploy-strip-title">Deploy with Docker</h3>
+          <p class="deploy-strip-sub">Interactive wizard for Discord Bot, Cloudflare Tunnel &amp; Keycloak Custom Realm (<code>playlist-bot</code>).</p>
+        </div>
+        <div class="deploy-cmd-box">
+          <code id="install-curl-cmd">curl -fsSL https://raw.githubusercontent.com/ilgmars/playlist-bot/main/install.sh | bash</code>
+          <button type="button" class="playlist-copy-btn" onclick="navigator.clipboard?.writeText(document.getElementById('install-curl-cmd').textContent); this.textContent='Copied!'; setTimeout(() => this.textContent='Copy', 1400)">Copy</button>
+        </div>
+      </section>
+
       <footer class="footer">
-        <p>Playlist Bot v0.1.0 — FastAPI, HTMX & Discord.py</p>
+        <p>Playlist Bot v0.1.0 · FastAPI, HTMX, Discord.py</p>
         <p><a href="https://github.com/ilgmars/playlist-bot" target="_blank" rel="noopener">View on GitHub</a></p>
       </footer>
     </main>

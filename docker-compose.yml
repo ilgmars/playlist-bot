@@ -1,35 +1,83 @@
-version: "3.8"
-
 services:
   playlist-bot:
-    image: localhost:5000/playlist-bot:latest
     build:
       context: .
-      dockerfile: Dockerfile
+      target: runtime
+    image: playlist-bot:latest
+    container_name: playlist-bot
     restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
     environment:
-      DB_PATH: /data/playlistbot.db
-      ROLE: all
+      DISCORD_TOKEN: ${DISCORD_TOKEN:-}
+      DISCORD_CHANNEL_IDS: ${DISCORD_CHANNEL_IDS:-}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI:-}
+      BOT_ADMIN_IDS: ${BOT_ADMIN_IDS:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-playlist-bot}
+      KEYCLOAK_ISSUER_URL: ${KEYCLOAK_ISSUER_URL:-}
+      KEYCLOAK_INTERNAL_ISSUER_URL: ${KEYCLOAK_INTERNAL_ISSUER_URL:-}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-}
+      KEYCLOAK_REDIRECT_URI: ${KEYCLOAK_REDIRECT_URI:-}
+      KEYCLOAK_ADMIN_ROLE: ${KEYCLOAK_ADMIN_ROLE:-playlist-admin}
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+      SPOTIFY_REFRESH_TOKEN: ${SPOTIFY_REFRESH_TOKEN:-}
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID:-}
+      YOUTUBE_CLIENT_SECRET: ${YOUTUBE_CLIENT_SECRET:-}
+      YOUTUBE_REFRESH_TOKEN: ${YOUTUBE_REFRESH_TOKEN:-}
+      PLAYLIST_DB_PATH: /data/playlists.db
       WEB_HOST: 0.0.0.0
       WEB_PORT: 8000
-      DISCORD_CHANNEL_ID: ""
-      DISCORD_GUILD_ID: ""
-      SPOTIFY_CLIENT_ID: ""
-      SPOTIFY_CLIENT_SECRET: ""
     volumes:
-      - playlist-data:/data
-      - ./logs:/app/logs
-    # port 8000 only exposed to cloudflared, not host
+      - playlist_data:/data
+    ports:
+      - "${WEB_BIND_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   cloudflared:
     image: cloudflare/cloudflared:latest
+    container_name: playlist-bot-tunnel
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    profiles: ["cloudflared"]
+    command: tunnel --no-autoupdate run
     environment:
-      - CF_TUNNEL_TOKEN
+      TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:-}
     depends_on:
       - playlist-bot
-    # cloudflared connects to playlist-bot:8000 internally
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: playlist-bot-keycloak
+    restart: unless-stopped
+    profiles: ["keycloak"]
+    command:
+      - start-dev
+      - --import-realm
+      - --health-enabled=true
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HTTP_PORT: 8080
+      KC_PROXY_HEADERS: xforwarded
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-}
+    volumes:
+      - ./deploy/keycloak/playlist-bot-realm.json:/opt/keycloak/data/import/playlist-bot-realm.json:ro
+      - keycloak_data:/opt/keycloak/data
+    ports:
+      - "${KEYCLOAK_BIND_PORT:-8081}:8080"
 
 volumes:
-  playlist-data:
+  playlist_data:
+  keycloak_data:

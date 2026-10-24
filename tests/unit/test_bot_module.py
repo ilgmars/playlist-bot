@@ -1,4 +1,4 @@
-"""Unit tests for playlistbot.bot — embeds, threads, DB lookups and run_bot."""
+"""Unit tests for playlistbot.bot."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Per-server profile management, zero-latency TTL cache, and authorization."""
+"""Per-server profile management, in-memory TTL cache, and authorization."""
 
 from __future__ import annotations
 
@@ -109,7 +109,7 @@ async def get_server_profile(guild_id: str) -> dict[str, Any]:
 
 
 async def get_server_profile_cached(guild_id: str) -> dict[str, Any]:
-    """Return a server profile from the O(1) monotonic TTL cache or SQLite."""
+    """Return a server profile from the in-memory TTL cache or SQLite."""
     now = time.monotonic()
     cached = _PROFILE_CACHE.get(guild_id)
     if cached is not None and (now - cached[0]) < _CACHE_TTL_SEC:
@@ -270,13 +270,21 @@ def _bot_admin_ids() -> set[str]:
     return {x.strip() for x in os.environ.get("BOT_ADMIN_IDS", "").split(",") if x.strip()}
 
 
+def _is_global_admin(user: dict[str, Any] | None) -> bool:
+    if not user or not user.get("id"):
+        return False
+    if user.get("is_admin") is True:
+        return True
+    return str(user["id"]) in _bot_admin_ids()
+
+
 async def get_user_guild_ids(user: dict[str, Any] | None) -> set[str] | None:
     """Return the set of guild IDs the user belongs to, or None if user is a global bot admin."""
     if not user or not user.get("id"):
         return set()
-    uid = str(user["id"])
-    if uid in _bot_admin_ids():
+    if _is_global_admin(user):
         return None
+    uid = str(user["id"])
     gids = set(user.get("guilds") or []) | set(user.get("manage_guilds") or [])
     async with get_db() as db:
         rows = await db.execute_fetchall(
@@ -300,9 +308,9 @@ async def can_user_manage_guild(user: dict[str, Any] | None, guild_id: str) -> b
     """Return True if the authenticated user can configure/edit the given guild."""
     if not user or not user.get("id"):
         return False
-    uid = str(user["id"])
-    if uid in _bot_admin_ids():
+    if _is_global_admin(user):
         return True
+    uid = str(user["id"])
     if not guild_id:
         return False
     if guild_id in (user.get("manage_guilds") or []):
@@ -364,7 +372,7 @@ async def list_servers(user: dict[str, Any] | None = None) -> list[dict[str, Any
 
     by_id, member_gids = _merge_server_rows(srv_rows, song_guilds, ug_rows)
     if user and uid:
-        is_bot_admin = uid in _bot_admin_ids()
+        is_bot_admin = _is_global_admin(user)
         explicit_manage = set(user.get("manage_guilds") or [])
         member_gids |= explicit_manage | set(user.get("guilds") or [])
         for gid, entry in by_id.items():

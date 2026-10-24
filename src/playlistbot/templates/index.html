@@ -123,6 +123,11 @@
             </svg>
             <span>Log in with Discord</span>
           </a>
+          {% if keycloak_enabled %}
+          <a href="/auth/keycloak" class="keycloak-login-btn" id="keycloak-login-btn" title="Sign in with Keycloak SSO (playlist-bot realm)">
+            <span>Keycloak SSO</span>
+          </a>
+          {% endif %}
           {% endif %}
           <a href="/api/export.m3u" class="export-btn" id="export-m3u-btn" download="playlist.m3u">Export .m3u</a>
           <div class="status-dot" id="status-dot">
@@ -297,6 +302,17 @@
           </svg>
           <h3>No songs yet</h3>
           <p>Post a music link in Discord to add the first track.</p>
+        </div>
+      </section>
+
+      <section class="deploy-strip" aria-labelledby="deploy-heading">
+        <div class="deploy-strip-left">
+          <h3 id="deploy-heading" class="deploy-strip-title">Deploy with Docker</h3>
+          <p class="deploy-strip-sub">Interactive wizard for Discord Bot, Cloudflare Tunnel &amp; Keycloak Custom Realm (<code>playlist-bot</code>).</p>
+        </div>
+        <div class="deploy-cmd-box">
+          <code id="install-curl-cmd">curl -fsSL https://raw.githubusercontent.com/ilgmars/playlist-bot/main/install.sh | bash</code>
+          <button type="button" class="playlist-copy-btn" onclick="copyInstallCmd(this)">Copy</button>
         </div>
       </section>
 
@@ -928,6 +944,17 @@
         updateStats();
         updateEmptyState();
         refreshPlatformPlaylists();
+      } catch (e) {}
+    }
+
+    async function copyInstallCmd(btnEl) {
+      const cmd = document.getElementById('install-curl-cmd')?.textContent.trim() || '';
+      if (!cmd) return;
+      try {
+        await navigator.clipboard.writeText(cmd);
+        const orig = btnEl.textContent;
+        btnEl.textContent = 'Copied!';
+        setTimeout(() => { btnEl.textContent = orig; }, 1400);
       } catch (e) {}
     }
 

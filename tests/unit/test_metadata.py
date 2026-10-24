@@ -1,4 +1,4 @@
-"""Tests for metadata extraction — mocked API calls."""
+"""Tests for metadata extraction."""
 
 from unittest.mock import AsyncMock
 

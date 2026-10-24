@@ -1,0 +1,142 @@
+{
+  "id": "playlist-bot",
+  "realm": "playlist-bot",
+  "displayName": "Discord Playlist Bot",
+  "displayNameHtml": "<strong>Discord Playlist Bot</strong> SSO",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "roles": {
+    "realm": [
+      {
+        "name": "playlist-admin",
+        "description": "Global administrator who can manage server profiles and edit playlists across all Discord servers",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "playlist-member",
+        "description": "Authenticated community member who can vote for tracks and view playlists for servers in their guilds claim",
+        "composite": false,
+        "clientRole": false
+      }
+    ]
+  },
+  "defaultRoles": [
+    "playlist-member"
+  ],
+  "clients": [
+    {
+      "clientId": "playlist-bot-web",
+      "name": "Playlist Bot Web Dashboard",
+      "description": "FastAPI OIDC client for Discord Playlist Bot web dashboard",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KEYCLOAK_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8000/auth/keycloak/callback",
+        "http://127.0.0.1:8000/auth/keycloak/callback",
+        "https://*/auth/keycloak/callback"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "protocolMappers": [
+        {
+          "name": "realm-roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "guilds-attribute-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "guilds",
+            "claim.name": "guilds",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "manage-guilds-attribute-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "manage_guilds",
+            "claim.name": "manage_guilds",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "discord-user-id-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "discord_user_id",
+            "claim.name": "discord_user_id",
+            "jsonType.label": "String",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "discord",
+      "displayName": "Discord",
+      "providerId": "oidc",
+      "enabled": true,
+      "trustEmail": true,
+      "storeToken": true,
+      "addReadTokenRoleOnCreate": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "${DISCORD_CLIENT_ID}",
+        "clientSecret": "${DISCORD_CLIENT_SECRET}",
+        "authorizationUrl": "https://discord.com/api/oauth2/authorize",
+        "tokenUrl": "https://discord.com/api/oauth2/token",
+        "userInfoUrl": "https://discord.com/api/users/@me",
+        "defaultScope": "identify email guilds",
+        "syncMode": "IMPORT",
+        "useJwksUrl": "false"
+      }
+    }
+  ]
+}

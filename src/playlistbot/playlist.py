@@ -281,7 +281,7 @@ class PlaylistManager:
             ):
                 self._youtube_creds.refresh(GoogleAuthRequest())
             else:
-                # First run — would need OAuth flow
+                # First run - would need OAuth flow
                 self._youtube_creds = None
                 return None
 
@@ -376,7 +376,7 @@ class PlaylistManager:
 
         token_info = sp_oauth.get_cached_token()
         if not token_info or sp_oauth.is_token_expired(token_info):
-            # First run — would need to visit the auth URL
+            # First run - would need to visit the auth URL
             if not token_info:
                 log.warning(
                     "Spotify token not found — run auth flow first: %s",
@@ -486,6 +486,6 @@ class PlaylistManager:
                     return False
                 return self.add_to_spotify_playlist(channel_id, playlist_id, link.original_url)
             case _:
-                # Apple Music, SoundCloud, Bandcamp — no write API
+                # Apple Music, SoundCloud, Bandcamp - no write API
                 log.info("Platform %s does not support automated playlist writes", platform)
                 return False

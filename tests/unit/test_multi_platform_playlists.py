@@ -1,4 +1,4 @@
-"""TDD tests for multi-platform playlists, server visibility, and admin editing (#12, #13)."""
+"""Tests for multi-platform playlists, server visibility, and admin editing."""
 
 from __future__ import annotations
 

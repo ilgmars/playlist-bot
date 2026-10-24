@@ -1,4 +1,4 @@
-"""Discord bot entry point — listens for music links and manages playlists.
+"""Discord bot entry point: listens for music links and manages playlists.
 
 Key design: the bot posts a single 'card' message in a thread per channel.
 On each new song, it edits that message in place (no duplicate messages).

@@ -1,4 +1,4 @@
-"""Unit tests for playlist.PlaylistManager — auth caching and platform dispatch."""
+"""Unit tests for playlist.PlaylistManager."""
 
 from __future__ import annotations
 

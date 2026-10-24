@@ -47,7 +47,7 @@ class TestEndToEndFlow:
         assert len(links) == 1
         assert links[0].platform == Platform.YOUTUBE
 
-        # Step 2: Check dedup — first time, not known
+        # Step 2: Check dedup - first time, not known
         assert not await is_known_link(links[0].canonical_url)
 
         # Step 3: Insert the song
@@ -72,7 +72,7 @@ class TestEndToEndFlow:
         # Step 4: Now it IS known (dedup works)
         assert await is_known_link(links[0].canonical_url)
 
-        # Step 5: Simulate another message with the SAME link — should be skipped
+        # Step 5: Simulate another message with the SAME link - should be skipped
         _ = extract_links(message_content)
         already_known = await is_known_link(links[0].canonical_url)
         assert already_known  # bot would skip this
@@ -102,11 +102,11 @@ class TestEndToEndFlow:
         assert state["last_message_id"] == "msg-1"
         assert state["total_songs"] == 1
 
-        # Second song arrives — bot edits msg-1 (same message_id), total increments
+        # Second song arrives - bot edits msg-1 (same message_id), total increments
         await save_thread_state(
             thread_id="thread-1",
             channel_id="chan-1",
-            last_message_id="msg-1",  # SAME message — edited in place
+            last_message_id="msg-1",  # same message, edited in place
             total_songs=2,
             latest_title="Song B",
             latest_url="https://youtu.be/bbb",

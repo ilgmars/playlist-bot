@@ -1,4 +1,4 @@
-"""Tests for link_parser — written test-first."""
+"""Tests for link_parser."""
 
 from playlistbot.link_parser import (
     Platform,

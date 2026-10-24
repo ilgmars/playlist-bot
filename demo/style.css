@@ -1,9 +1,7 @@
-/* Playlist Bot — Editorial Utility
-   Palette: Warm off-white #F7F6F2, Charcoal #161615, Stone #6E6D68, Accent #FF4F00 (International Orange)
-*/
+/* Playlist Bot styles */
 
 :root {
-  /* Color system — warm editorial */
+  /* Colors */
   --bg: #F7F6F2;
   --bg-elevated: #FAF8F5;
   --fg: #161615;
@@ -39,23 +37,23 @@
   --sidebar-w: 280px;
   --max-w: 1200px;
 
-  /* Corners — sharp, tactile */
+  /* Radius */
   --radius-sm: 2px;
   --radius-md: 4px;
   --radius-lg: 6px;
 
-  /* Easing tokens — Emil Kowalski strong custom curves */
+  /* Transitions */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   --fast: 160ms;
   --normal: 200ms;
 
-  /* Shadows — none, use crisp borders */
+  /* Shadows */
   --shadow-none: none;
 }
 
-/* Dark mode — warm carbon, not pure black */
+/* Dark theme */
 [data-theme="dark"] {
   --bg: #111315;
   --bg-elevated: #181A1D;
@@ -87,7 +85,7 @@ body {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
-/* Exposed grid — hairline dividers */
+/* Grid overlay */
 .grid-overlay {
   position: fixed;
   inset: 0;
@@ -102,7 +100,7 @@ body {
 
 [data-theme="dark"] .grid-overlay { opacity: 0.3; }
 
-/* Focus visible — accessible and restrained */
+/* Focus ring */
 *:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
@@ -115,7 +113,7 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; border: none; }
 ::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
 
-/* Layout — asymmetric 12-col: sidebar + main */
+/* Layout */
 .dashboard {
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
@@ -130,7 +128,7 @@ body {
   .dashboard { grid-template-columns: 1fr; }
 }
 
-/* Sidebar — sticky index */
+/* Sidebar */
 .sidebar {
   position: sticky;
   top: var(--space-6);
@@ -480,7 +478,7 @@ body {
 
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-/* Stats bar — horizontal cards */
+/* Stats bar */
 .stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -531,7 +529,7 @@ body {
   color: var(--fg-muted);
 }
 
-/* Toolbar — search + sort + platform filters */
+/* Toolbar */
 .toolbar {
   display: flex;
   align-items: center;
@@ -687,7 +685,7 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Song grid — responsive */
+/* Song grid */
 .songs-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -698,7 +696,7 @@ body {
   .songs-grid { grid-template-columns: 1fr; }
 }
 
-/* Song card — tactile, bordered */
+/* Song card */
 .song-card {
   padding: var(--space-5);
   border: 1px solid var(--border);
@@ -805,7 +803,7 @@ body {
   transform: scale(0.95);
 }
 
-/* Tactile vote button */
+/* Vote button */
 .vote-btn {
   display: inline-flex;
   align-items: center;
@@ -876,7 +874,7 @@ body {
   line-height: 1.4;
 }
 
-/* Platform badges — branded colors, sharp */
+/* Platform badges */
 .song-platforms {
   display: flex;
   flex-wrap: wrap;
@@ -1286,7 +1284,7 @@ body {
   transform: scale(0.97);
 }
 
-/* Slide-over configuration drawer (Emil Kowalski --ease-drawer curve) */
+/* Server configuration drawer */
 .drawer-backdrop {
   position: fixed;
   inset: 0;
@@ -1679,7 +1677,78 @@ body {
   transform: scale(0.97);
 }
 
-/* Reduced motion — remove transform motion, preserve subtle opacity/color transitions */
+/* Keycloak button & deploy bar */
+.keycloak-login-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-elevated);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    transform var(--fast) var(--ease-out),
+    border-color var(--fast) ease,
+    background-color var(--fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .keycloak-login-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
+.keycloak-login-btn:active {
+  transform: scale(0.97);
+}
+
+.deploy-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-top: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-elevated);
+}
+
+.deploy-strip-title {
+  font-family: var(--font-ui);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.deploy-strip-sub {
+  font-size: 0.8125rem;
+  color: var(--fg-muted);
+  margin-top: 2px;
+}
+
+.deploy-cmd-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg);
+  overflow-x: auto;
+}
+
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .song-card,
   .auth-toast,

@@ -1,4 +1,4 @@
-"""Tests for the playlist manager — mocked API calls."""
+"""Tests for the playlist manager."""
 
 import pytest
 

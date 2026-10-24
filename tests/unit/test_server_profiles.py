@@ -1,4 +1,4 @@
-"""Tests for multi-server profiles, zero-latency config cache, bot invite, and web config."""
+"""Tests for multi-server profiles, config cache, bot invite, and web config."""
 
 from __future__ import annotations
 

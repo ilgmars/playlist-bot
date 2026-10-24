@@ -41,7 +41,7 @@ class ParsedLink:
 # ---------------------------------------------------------------------------
 
 _PATTERNS: list[tuple[Platform, re.Pattern[str], str]] = [
-    # YouTube — watch?v=VIDEO_ID  OR  youtu.be/VIDEO_ID
+    # YouTube - watch?v=VIDEO_ID  OR  youtu.be/VIDEO_ID
     (
         Platform.YOUTUBE,
         re.compile(
@@ -59,7 +59,7 @@ _PATTERNS: list[tuple[Platform, re.Pattern[str], str]] = [
         ),
         "https://music.youtube.com/watch?v={id}",
     ),
-    # Spotify — track, album, artist, playlist, episode
+    # Spotify - track, album, artist, playlist, episode
     (
         Platform.SPOTIFY,
         re.compile(
@@ -85,13 +85,13 @@ _PATTERNS: list[tuple[Platform, re.Pattern[str], str]] = [
         re.compile(r"https?://(?:www\.)?soundcloud\.com/[\w-]+/[\w-]+"),
         "{original}",
     ),  # SoundCloud canonical = original URL
-    # Bandcamp — subdomain.bandcamp.com/track|album/slug
+    # Bandcamp - subdomain.bandcamp.com/track|album/slug
     (
         Platform.BANDCAMP,
         re.compile(r"https?://[\w-]+\.bandcamp\.com/(?:track|album)/[\w-]+"),
         "{original}",
     ),
-    # Deezer — track, album, artist, playlist
+    # Deezer - track, album, artist, playlist
     (
         Platform.DEEZER,
         re.compile(
@@ -100,7 +100,7 @@ _PATTERNS: list[tuple[Platform, re.Pattern[str], str]] = [
         ),
         "https://www.deezer.com/{kind}/{id}",
     ),
-    # Tidal — track, album, artist, playlist
+    # Tidal - track, album, artist, playlist
     (
         Platform.TIDAL,
         re.compile(
@@ -253,7 +253,7 @@ def _extract_track_id(platform: Platform, match: re.Match[str]) -> str | None:
 def extract_links(text: str) -> list[ParsedLink]:
     """Extract all music links from a message string."""
     results: list[ParsedLink] = []
-    # Find all URLs in the text — Discord embeds may be bare or in angle brackets
+    # Find all URLs in the text - Discord embeds may be bare or in angle brackets
     url_pattern = re.compile(
         r'https?://[^\s<>"\']+',
     )

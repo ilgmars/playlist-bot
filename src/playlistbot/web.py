@@ -1,4 +1,4 @@
-"""Web dashboard — FastAPI backend with Jinja2 + HTMX template rendering."""
+"""Web dashboard backend (FastAPI + Jinja2 + HTMX)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import html
 import json
 import os
 import re
-import secrets  # cryptographic nonce generator
+import secrets
 import time
 from pathlib import Path
 from typing import Any
@@ -32,6 +32,11 @@ from .db import (
     insert_song,
     toggle_vote,
     update_song_metadata,
+)
+from .keycloak import (
+    build_keycloak_auth_url,
+    exchange_keycloak_code,
+    is_keycloak_configured,
 )
 from .link_parser import extract_links
 from .models import Platform, SongLink
@@ -56,7 +61,7 @@ _template_dir = Path(__file__).resolve().parent / "templates"
 _static_dir = Path(__file__).resolve().parent / "static"
 SESSION_COOKIE = "playlistbot_session"
 STATE_COOKIE = "playlistbot_oauth_state"
-_FALLBACK_KEY = secrets.token_hex(32)  # ephemeral signing key when SESSION_KEY unset
+_FALLBACK_KEY = secrets.token_hex(32)
 
 if _static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
@@ -89,7 +94,10 @@ def _encode_session(user: dict[str, Any]) -> str:
 
 
 def _decode_session(cookie_val: str | None) -> dict[str, Any] | None:
-    if not cookie_val or "." not in cookie_val:
+    if not cookie_val:
+        return None
+    cookie_val = cookie_val.strip('"')
+    if "." not in cookie_val:
         return None
     payload, sig = cookie_val.rsplit(".", 1)
     expected = hmac.new(_signing_key(), payload.encode("ascii"), hashlib.sha256).hexdigest()
@@ -220,6 +228,7 @@ async def index(
             "active_channel": channel_id or "",
             "active_guild": guild_id or "",
             "user": user,
+            "keycloak_enabled": is_keycloak_configured(),
         },
     )
 
@@ -381,7 +390,7 @@ async def auth_discord(request: Request):
             {"error": "DISCORD_CLIENT_ID is not configured"},
             status_code=503,
         )
-    state_val = secrets.token_urlsafe(24)  # CSRF state nonce
+    state_val = secrets.token_urlsafe(24)
     params = urlencode(
         {
             "client_id": client_id,
@@ -471,6 +480,53 @@ async def auth_discord_callback(
     user = await _exchange_discord_code(code, redirect_uri)
     if not user:
         return JSONResponse({"error": "Discord OAuth2 exchange failed"}, status_code=502)
+    resp = RedirectResponse("/", status_code=302)
+    resp.delete_cookie(STATE_COOKIE)
+    resp.set_cookie(
+        SESSION_COOKIE,
+        _encode_session(user),
+        httponly=True,
+        max_age=60 * 60 * 24 * 14,
+        samesite="lax",
+    )
+    return resp
+
+
+@app.get("/auth/keycloak")
+async def auth_keycloak(request: Request):
+    """Redirect the user to the Keycloak custom realm OIDC authorization screen."""
+    if not is_keycloak_configured():
+        return JSONResponse(
+            {"error": "KEYCLOAK_ISSUER_URL and KEYCLOAK_CLIENT_ID are not configured"},
+            status_code=503,
+        )
+    redirect_uri = os.environ.get(
+        "KEYCLOAK_REDIRECT_URI",
+        str(request.url_for("auth_keycloak_callback")),
+    )
+    state_val = secrets.token_urlsafe(24)
+    resp = RedirectResponse(build_keycloak_auth_url(redirect_uri, state_val), status_code=302)
+    resp.set_cookie(STATE_COOKIE, state_val, httponly=True, max_age=600, samesite="lax")
+    return resp
+
+
+@app.get("/auth/keycloak/callback")
+async def auth_keycloak_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+):
+    """Handle Keycloak OIDC callback, map realm roles & guilds, and set session cookie."""
+    expected_state = request.cookies.get(STATE_COOKIE)
+    if not code or not state or not expected_state or state != expected_state:
+        return JSONResponse({"error": "Invalid OIDC state or missing code"}, status_code=400)
+    redirect_uri = os.environ.get(
+        "KEYCLOAK_REDIRECT_URI",
+        str(request.url_for("auth_keycloak_callback")),
+    )
+    user = await exchange_keycloak_code(code, redirect_uri)
+    if not user:
+        return JSONResponse({"error": "Keycloak OIDC exchange failed"}, status_code=502)
     resp = RedirectResponse("/", status_code=302)
     resp.delete_cookie(STATE_COOKIE)
     resp.set_cookie(

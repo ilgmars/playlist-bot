@@ -14,7 +14,7 @@ FROM base AS deps
 COPY pyproject.toml README.md ./
 COPY src ./src
 RUN pip install --no-cache-dir hatchling hatch-vcs 2>/dev/null; \
-    pip install --no-cache-dir .
+    pip install --no-cache-dir . "urllib3>=2.8.0"
 
 FROM deps AS test
 RUN pip install --no-cache-dir ".[dev]" "bandit[toml]"
@@ -23,5 +23,10 @@ COPY tests ./tests
 FROM base AS runtime
 COPY --from=deps /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=deps /usr/local/bin /usr/local/bin
+RUN rm -rf /usr/local/lib/python3.12/ensurepip \
+           /usr/local/lib/python3.12/site-packages/pip* \
+           /usr/local/lib/python3.12/site-packages/setuptools* \
+           /usr/local/bin/pip* \
+           /usr/local/bin/setuptools*
 COPY src/playlistbot ./src/playlistbot
 ENTRYPOINT ["python", "-m", "playlistbot"]

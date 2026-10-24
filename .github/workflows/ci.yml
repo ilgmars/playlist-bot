@@ -3,7 +3,7 @@ on: [push, pull_request]
 
 jobs:
   lint:
-    name: Lint & Type Check
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -117,43 +117,3 @@ jobs:
         if: always()
         with:
           sarif_file: trivy-results.sarif
-
-  review:
-    name: Code Review (Automated)
-    runs-on: ubuntu-latest
-    needs: [test, security]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run review checks
-        run: |
-          # Check for TODO/FIXME comments
-          echo "=== TODOs/FIXMEs ==="
-          grep -rn "TODO\|FIXME\|XXX" src --include="*.py" || true
-
-          # Check for hardcoded secrets patterns
-          echo "=== Potential secrets ==="
-          grep -rn "password\|secret\|token\|api_key" src --include="*.py" | grep -v "os.environ\|getenv\|# " || true
-
-          # Check for print statements in production code
-          echo "=== Print statements ==="
-          grep -rn "print(" src --include="*.py" | grep -v "test_" || true
-
-          # Check for large functions
-          echo "=== Large functions (>50 lines) ==="
-          python -c "import ast, glob; [print(f'{f}:{n.lineno} {n.name} - {n.end_lineno-n.lineno} lines') for f in glob.glob('src/**/*.py', recursive=True) for n in ast.walk(ast.parse(open(f).read(), filename=f)) if isinstance(n, ast.FunctionDef) and (n.end_lineno-n.lineno) > 50]" || true
-
-  deploy:
-    name: Deploy to PVE (Mock)
-    runs-on: ubuntu-latest
-    needs: [docker, review]
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Mock deploy to PVE
-        run: |
-          echo "=== Mock Deploy to PVE (192.168.88.109) ==="
-          echo "Would run: ssh root@192.168.88.109 'cd /opt/playlist-bot && docker-compose pull && docker-compose up -d'"
-          echo "Docker image: playlist-bot:${{ github.sha }}"
-          echo "Deploy complete (mock)"

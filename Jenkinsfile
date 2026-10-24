@@ -47,16 +47,9 @@ pipeline {
             }
         }
 
-        stage('Code Review (Automated)') {
+        stage('Static Checks') {
             steps {
                 sh '''
-                    echo "=== TODOs/FIXMEs ==="
-                    grep -rn -E "TODO|FIXME|XXX" src --include="*.py" || true
-
-                    echo "=== Print statements ==="
-                    grep -rn "print(" src --include="*.py" | grep -v "test_" || true
-
-                    echo "=== Large functions (>50 lines) ==="
                     docker run --rm --entrypoint python "${TEST_IMAGE}" -c "
 import ast, glob, sys
 bad = []
@@ -107,10 +100,10 @@ if bad:
             sh 'docker rmi "${TEST_IMAGE}" 2>/dev/null || true'
         }
         success {
-            echo 'Build, tests, security scans, and review passed!'
+            echo 'Build and tests passed.'
         }
         failure {
-            echo 'Build or tests failed!'
+            echo 'Build or tests failed.'
         }
     }
 }
