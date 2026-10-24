@@ -8,6 +8,7 @@ import hmac
 import html
 import json
 import os
+import re
 import secrets  # cryptographic nonce generator
 import time
 from pathlib import Path
@@ -21,13 +22,27 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
-from .db import get_channels, get_songs_newest_first, get_stats, toggle_vote
-from .playlist import generate_m3u
+from .db import (
+    delete_song,
+    get_channels,
+    get_playlists,
+    get_song_by_id,
+    get_songs_newest_first,
+    get_stats,
+    insert_song,
+    toggle_vote,
+    update_song_metadata,
+)
+from .link_parser import extract_links
+from .models import Platform, SongLink
+from .playlist import build_platform_playlists, generate_m3u
 from .servers import (
     build_bot_invite_url,
     can_user_manage_guild,
+    can_user_view_guild,
     get_guild_channels,
     get_server_profile,
+    get_user_guild_ids,
     is_valid_id,
     list_servers,
     save_user_guilds,
@@ -128,9 +143,24 @@ def _render_vote_button(
     )
 
 
-def _render_song_card(song: dict[str, Any], is_logged_in: bool = False) -> str:
+def _render_badge(lnk: dict[str, Any]) -> str:
+    raw = str(lnk.get("platform", "unknown"))
+    plat = html.escape(raw, quote=True)
+    url = html.escape(str(lnk.get("original_url", "")), quote=True)
+    label = html.escape(_PLATFORM_LABELS.get(raw, raw.capitalize()))
+    return (
+        f'<a href="{url}" class="platform-badge {plat}" '
+        f'data-platform="{plat}" target="_blank" rel="noopener">{label}</a>'
+    )
+
+
+def _render_song_card(
+    song: dict[str, Any],
+    is_logged_in: bool = False,
+    can_edit: bool = False,
+) -> str:
     """Render a single song dictionary as an escaped HTML card fragment."""
-    song_id = str(song.get("id", ""))
+    song_id = html.escape(str(song.get("id", "")), quote=True)
     title = html.escape(str(song.get("title", "")), quote=True)
     artist = html.escape(str(song.get("artist", "")), quote=True)
     created_at = html.escape(str(song.get("created_at", "")), quote=True)
@@ -138,30 +168,28 @@ def _render_song_card(song: dict[str, Any], is_logged_in: bool = False) -> str:
     guild_id = html.escape(str(song.get("guild_id") or ""), quote=True)
     vote_count = int(song.get("vote_count") or 0)
     voted = bool(song.get("user_voted"))
-    badges: list[str] = []
-    for link in song.get("links", []):
-        raw_plat = str(link.get("platform", "unknown"))
-        plat = html.escape(raw_plat, quote=True)
-        url = html.escape(str(link.get("original_url", "")), quote=True)
-        label = html.escape(_PLATFORM_LABELS.get(raw_plat, raw_plat.capitalize()))
-        badges.append(
-            f'<a href="{url}" class="platform-badge {plat}" '
-            f'data-platform="{plat}" target="_blank" rel="noopener">{label}</a>'
-        )
-    link_tags = " ".join(badges)
+    badges = [_render_badge(lnk) for lnk in song.get("links", [])]
     vote_html = _render_vote_button(song_id, vote_count, voted, is_logged_in)
+    admin_html = (
+        f'<button type="button" class="song-admin-btn" '
+        f'onclick="promptEditSong(\'{song_id}\', this)" title="Edit track">✎</button>'
+        f'<button type="button" class="song-admin-btn danger" '
+        f'onclick="deleteSongCard(\'{song_id}\', this)" title="Remove from playlist">✕</button>'
+        if can_edit
+        else ""
+    )
     return (
-        f'<article class="song-card" data-channel="{channel_id}" '
+        f'<article class="song-card" data-song-id="{song_id}" data-channel="{channel_id}" '
         f'data-guild="{guild_id}" data-votes="{vote_count}">\n'
         f'  <div class="song-header">\n'
         f'    <div class="song-title-row">\n'
         f'      <strong class="song-title">{title}</strong>\n'
-        f'      <div class="song-meta-right">{vote_html}'
+        f'      <div class="song-meta-right">{vote_html}{admin_html}'
         f'<time class="song-time">{created_at}</time></div>\n'
         f"    </div>\n"
         f'    <span class="song-artist">{artist}</span>\n'
         f"  </div>\n"
-        f'  <div class="song-platforms song-links">{link_tags}</div>\n'
+        f'  <div class="song-platforms song-links">{" ".join(badges)}</div>\n'
         f"</article>"
     )
 
@@ -203,8 +231,14 @@ async def api_songs(
     guild_id: str | None = None,
     sort: str = "newest",
 ):
-    """HTMX fragment: returns the latest songs as HTML."""
+    """HTMX fragment: returns the latest songs from servers the user belongs to."""
     user = _get_current_user(request)
+    if guild_id:
+        if not user or not await can_user_view_guild(user, guild_id):
+            return HTMLResponse(
+                '<p class="empty">You do not have access to this Discord server.</p>',
+                status_code=403,
+            )
     songs = await get_songs_newest_first(
         limit=50,
         channel_id=channel_id,
@@ -212,9 +246,25 @@ async def api_songs(
         sort_by="votes" if sort == "votes" else "newest",
         guild_id=guild_id,
     )
+    if not guild_id and user:
+        allowed = await get_user_guild_ids(user)
+        if allowed is not None:
+            songs = [s for s in songs if not s.get("guild_id") or s.get("guild_id") in allowed]
     if not songs:
         return '<p class="empty">No songs collected yet. Post a music link in Discord!</p>'
-    return "\n".join(_render_song_card(song, is_logged_in=user is not None) for song in songs)
+    manageable = (
+        {s["guild_id"] for s in await list_servers(user=user) if s.get("can_manage")}
+        if user
+        else set()
+    )
+    return "\n".join(
+        _render_song_card(
+            song,
+            is_logged_in=user is not None,
+            can_edit=bool(song.get("guild_id") and song.get("guild_id") in manageable),
+        )
+        for song in songs
+    )
 
 
 @app.post("/api/songs/{song_id}/vote")
@@ -449,27 +499,264 @@ async def auth_me(request: Request):
     return {"authenticated": user is not None, "user": user}
 
 
-@app.get("/api/export.m3u")
-async def api_export_m3u(
+async def _check_playlist_access(
+    request: Request,
+    guild_id: str | None,
+) -> tuple[dict[str, Any] | None, set[str] | None, JSONResponse | None]:
+    user = _get_current_user(request)
+    if guild_id:
+        if not user:
+            return (
+                None,
+                None,
+                JSONResponse({"error": "Discord login required"}, status_code=401),
+            )
+        if not await can_user_view_guild(user, guild_id):
+            return (
+                user,
+                None,
+                JSONResponse(
+                    {"error": "You are not a member of this Discord server"},
+                    status_code=403,
+                ),
+            )
+        return user, {guild_id}, None
+    allowed = await get_user_guild_ids(user) if user else set()
+    return user, allowed, None
+
+
+async def _load_platform_playlists(
+    channel_id: str | None = None,
+    guild_id: str | None = None,
+    allowed_guilds: set[str] | None = None,
+) -> dict[str, dict[str, Any]]:
+    songs = await get_songs_newest_first(limit=500, channel_id=channel_id, guild_id=guild_id)
+    if not guild_id and allowed_guilds is not None:
+        songs = [s for s in songs if not s.get("guild_id") or s.get("guild_id") in allowed_guilds]
+    synced = await get_playlists(channel_id)
+    custom: dict[str, str] = {}
+    if guild_id and is_valid_id(guild_id):
+        prof = await get_server_profile(guild_id)
+        custom = dict(prof.get("playlist_urls") or {})
+    return build_platform_playlists(
+        songs,
+        synced_playlists=synced,
+        custom_urls=custom,
+        guild_id=guild_id,
+        channel_id=channel_id,
+    )
+
+
+@app.get("/api/playlists")
+async def api_playlists(
+    request: Request,
     channel_id: str | None = None,
     guild_id: str | None = None,
 ):
+    """Return playlists from servers the user belongs to."""
+    user, allowed, err = await _check_playlist_access(request, guild_id)
+    if err:
+        return err
+    playlists = await _load_platform_playlists(
+        channel_id=channel_id,
+        guild_id=guild_id,
+        allowed_guilds=allowed,
+    )
+    can_edit = await can_user_manage_guild(user, guild_id) if guild_id else False
+    return {
+        "guild_id": guild_id,
+        "channel_id": channel_id,
+        "can_edit": can_edit,
+        "playlists": playlists,
+    }
+
+
+@app.get("/playlists/{platform}")
+async def open_platform_playlist(
+    request: Request,
+    platform: str,
+    channel_id: str | None = None,
+    guild_id: str | None = None,
+):
+    """Redirect directly to the platform playlist (Spotify, YouTube queue, Apple Music, etc.)."""
+    _, allowed, err = await _check_playlist_access(request, guild_id)
+    if err:
+        return err
+    key = "soundcloud" if platform.lower() == "sound_cloud" else platform.lower()
+    playlists = await _load_platform_playlists(
+        channel_id=channel_id,
+        guild_id=guild_id,
+        allowed_guilds=allowed,
+    )
+    entry = playlists.get(key)
+    if not entry or not entry.get("open_url"):
+        return JSONResponse(
+            {"error": f"No playlist or tracks available for platform '{platform}'"},
+            status_code=404,
+        )
+    return RedirectResponse(entry["open_url"], status_code=302)
+
+
+@app.get("/api/playlists/{platform}/tracks.txt")
+async def api_platform_tracks_txt(
+    request: Request,
+    platform: str,
+    channel_id: str | None = None,
+    guild_id: str | None = None,
+    format: str = "uris",
+):
+    """Return newline-separated track URIs or URLs for 1-click playlist import."""
+    _, allowed, err = await _check_playlist_access(request, guild_id)
+    if err:
+        return err
+    key = "soundcloud" if platform.lower() == "sound_cloud" else platform.lower()
+    playlists = await _load_platform_playlists(
+        channel_id=channel_id,
+        guild_id=guild_id,
+        allowed_guilds=allowed,
+    )
+    entry = playlists.get(key)
+    if not entry:
+        return JSONResponse({"error": f"Unsupported platform '{platform}'"}, status_code=404)
+    lines = entry["track_urls"] if format == "urls" else entry["track_uris"]
+    return Response(content="\n".join(lines) + ("\n" if lines else ""), media_type="text/plain")
+
+
+@app.put("/api/servers/{guild_id}/playlists")
+async def api_update_server_playlists(request: Request, guild_id: str):
+    """Edit a server's playlist prefix and platform playlist URLs (requires server admin)."""
+    return await api_update_server_config(request, guild_id)
+
+
+@app.post("/api/servers/{guild_id}/songs")
+async def api_add_server_song(request: Request, guild_id: str):
+    """Add a song to a server's playlist from the web dashboard (requires server admin)."""
+    user = _get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Authentication required"}, status_code=401)
+    if not await can_user_manage_guild(user, guild_id):
+        return JSONResponse({"error": "Server admin permission required"}, status_code=403)
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
+
+    title = re.sub(r"[\r\n\t]", " ", str(payload.get("title") or "")).strip()
+    artist = re.sub(r"[\r\n\t]", " ", str(payload.get("artist") or "Unknown")).strip()
+    url = str(payload.get("url") or "").strip()
+    channel_id = str(payload.get("channel_id") or "").strip() or None
+    if not title or len(title) > 120 or not url.startswith("https://"):
+        return JSONResponse({"error": "Valid title and https:// URL required"}, status_code=400)
+
+    parsed = extract_links(url)
+    links = (
+        [
+            SongLink(
+                platform=p.platform,
+                original_url=p.original_url,
+                canonical_url=p.canonical_url,
+                track_id=p.track_id,
+            )
+            for p in parsed
+        ]
+        if parsed
+        else [SongLink(platform=Platform.SPOTIFY, original_url=url, canonical_url=url)]
+    )
+    song_id = await insert_song(
+        title=title,
+        artist=artist,
+        links=links,
+        added_by=str(user["id"]),
+        channel_id=channel_id,
+        guild_id=guild_id,
+    )
+    return {"id": song_id, "title": title, "artist": artist, "guild_id": guild_id}
+
+
+@app.patch("/api/songs/{song_id}")
+async def api_edit_song(request: Request, song_id: str):
+    """Edit a song's title or artist in the server playlist (requires server admin)."""
+    user = _get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Authentication required"}, status_code=401)
+    song = await get_song_by_id(song_id)
+    if not song:
+        return JSONResponse({"error": "Song not found"}, status_code=404)
+    if not await can_user_manage_guild(user, song.get("guild_id") or ""):
+        return JSONResponse({"error": "Server admin permission required"}, status_code=403)
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
+
+    title = (
+        re.sub(r"[\r\n\t]", " ", str(payload["title"])).strip()
+        if "title" in payload and payload["title"] is not None
+        else None
+    )
+    artist = (
+        re.sub(r"[\r\n\t]", " ", str(payload["artist"])).strip()
+        if "artist" in payload and payload["artist"] is not None
+        else None
+    )
+    if (title is not None and not (1 <= len(title) <= 120)) or (
+        artist is not None and not (1 <= len(artist) <= 120)
+    ):
+        return JSONResponse({"error": "Title and artist must be 1..120 chars"}, status_code=400)
+    updated = await update_song_metadata(song_id, title=title, artist=artist)
+    return updated
+
+
+@app.delete("/api/songs/{song_id}")
+async def api_delete_song(request: Request, song_id: str):
+    """Delete a song from the server playlist (requires server admin)."""
+    user = _get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Authentication required"}, status_code=401)
+    song = await get_song_by_id(song_id)
+    if not song:
+        return JSONResponse({"error": "Song not found"}, status_code=404)
+    if not await can_user_manage_guild(user, song.get("guild_id") or ""):
+        return JSONResponse({"error": "Server admin permission required"}, status_code=403)
+    await delete_song(song_id)
+    if request.headers.get("HX-Request"):
+        return HTMLResponse("")
+    return {"deleted": True, "song_id": song_id}
+
+
+@app.get("/api/export.m3u")
+async def api_export_m3u(
+    request: Request,
+    channel_id: str | None = None,
+    guild_id: str | None = None,
+    platform: str | None = None,
+):
     """Download the collected songs as an Extended M3U (.m3u) playlist file."""
+    _, allowed, err = await _check_playlist_access(request, guild_id)
+    if err:
+        return err
     songs = await get_songs_newest_first(
         limit=500,
         channel_id=channel_id,
         guild_id=guild_id,
     )
+    if not guild_id and allowed is not None:
+        songs = [s for s in songs if not s.get("guild_id") or s.get("guild_id") in allowed]
     prefix = "Discord Playlist"
     if guild_id:
         prof = await get_server_profile(guild_id)
         prefix = prof.get("playlist_prefix") or prefix
     name = f"{prefix} #{channel_id}" if channel_id else prefix
-    m3u_content = generate_m3u(songs, title=name)
+    safe_plat = None
+    filename = "playlist.m3u"
+    if platform:
+        safe_plat = "".join(c for c in platform.lower() if c.isalnum() or c == "_")
+        filename = f"playlist-{safe_plat}.m3u"
+    m3u_content = generate_m3u(songs, title=name, preferred_platform=safe_plat)
     return Response(
         content=m3u_content,
         media_type="audio/x-mpegurl",
-        headers={"Content-Disposition": 'attachment; filename="playlist.m3u"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

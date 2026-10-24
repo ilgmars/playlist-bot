@@ -106,13 +106,145 @@ def generate_m3u(
     return "\n".join(lines) + "\n"
 
 
-class PlaylistManager:
-    """Manages playlists across supported platforms.
+_PLATFORM_LABELS: dict[str, str] = {
+    "spotify": "Spotify",
+    "youtube": "YouTube",
+    "youtube_music": "YouTube Music",
+    "apple_music": "Apple Music",
+    "deezer": "Deezer",
+    "soundcloud": "SoundCloud",
+    "tidal": "Tidal",
+    "bandcamp": "Bandcamp",
+}
 
-    Each channel gets its own playlist per platform. New songs are prepended
-    so the newest appears first (Spotify and YouTube both support insert-at-top
-    via position=0).
-    """
+
+def _extract_yt_id(link: dict[str, Any]) -> str | None:
+    import re
+
+    tid = str(link.get("track_id") or "")
+    if re.fullmatch(r"[A-Za-z0-9_-]{11}", tid):
+        return tid
+    url = str(link.get("original_url") or link.get("canonical_url") or "")
+    m = re.search(r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})", url)
+    return m.group(1) if m else None
+
+
+def _extract_sp_uri(link: dict[str, Any]) -> str:
+    import re
+
+    url = str(link.get("original_url") or link.get("canonical_url") or "")
+    tid = str(link.get("track_id") or "")
+    if re.fullmatch(r"[A-Za-z0-9]{22}", tid):
+        return f"spotify:track:{tid}"
+    m = re.search(r"/track/([A-Za-z0-9]{22})", url)
+    return f"spotify:track:{m.group(1)}" if m else url
+
+
+def _collect_platform_tracks(
+    songs: list[dict[str, Any]],
+    platform: str,
+) -> tuple[list[str], list[str], list[str]]:
+    urls: list[str] = []
+    uris: list[str] = []
+    yt_ids: list[str] = []
+    match_set = (
+        {"youtube", "youtube_music"}
+        if platform in ("youtube", "youtube_music")
+        else ({platform, "sound_cloud"} if platform == "soundcloud" else {platform})
+    )
+    for song in songs:
+        for link in song.get("links") or []:
+            lp = str(link.get("platform") or "")
+            url = str(link.get("original_url") or link.get("canonical_url") or "")
+            if lp not in match_set or not url or url in urls:
+                continue
+            urls.append(url)
+            if platform == "spotify":
+                uris.append(_extract_sp_uri(link))
+            else:
+                uris.append(url)
+            if platform in ("youtube", "youtube_music"):
+                vid = _extract_yt_id(link)
+                if vid and vid not in yt_ids:
+                    yt_ids.append(vid)
+            break
+    return urls, uris, yt_ids
+
+
+def _build_single_platform_entry(
+    plat: str,
+    label: str,
+    songs: list[dict[str, Any]],
+    direct_url: str | None,
+    guild_id: str | None,
+    channel_id: str | None,
+) -> dict[str, Any]:
+    from urllib.parse import urlencode
+
+    urls, uris, yt_ids = _collect_platform_tracks(songs, plat)
+    mode = "empty"
+    open_url: str | None = None
+    if direct_url:
+        mode = "synced"
+        open_url = direct_url
+    elif plat in ("youtube", "youtube_music") and yt_ids:
+        mode = "instant_queue"
+        open_url = f"https://www.youtube.com/watch_videos?video_ids={','.join(yt_ids[:50])}"
+    elif urls:
+        mode = "tracks"
+        open_url = urls[0]
+
+    q: dict[str, str] = {"platform": plat}
+    if guild_id:
+        q["guild_id"] = guild_id
+    if channel_id:
+        q["channel_id"] = channel_id
+    qs = urlencode(q)
+    q_open = {k: v for k, v in q.items() if k != "platform"}
+    open_qs = f"?{urlencode(q_open)}" if q_open else ""
+    return {
+        "platform": plat,
+        "label": label,
+        "track_count": len(urls),
+        "mode": mode,
+        "playlist_url": direct_url,
+        "open_url": open_url,
+        "redirect_url": f"/playlists/{plat}{open_qs}",
+        "export_m3u_url": f"/api/export.m3u?{qs}",
+        "tracks_txt_url": f"/api/playlists/{plat}/tracks.txt{open_qs}",
+        "track_urls": urls,
+        "track_uris": uris,
+    }
+
+
+def build_platform_playlists(
+    songs: list[dict[str, Any]],
+    synced_playlists: list[dict[str, Any]] | None = None,
+    custom_urls: dict[str, str] | None = None,
+    guild_id: str | None = None,
+    channel_id: str | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Build multi-platform playlist descriptors (Spotify, YouTube, YT Music, Apple Music, etc.)."""
+    synced_map: dict[str, str] = {}
+    for row in synced_playlists or []:
+        p = str(row.get("platform") or "")
+        u = str(row.get("playlist_url") or "")
+        if p and u:
+            synced_map["soundcloud" if p == "sound_cloud" else p] = u
+    for p, u in (custom_urls or {}).items():
+        if p and u:
+            synced_map["soundcloud" if p == "sound_cloud" else p] = str(u)
+
+    return {
+        plat: _build_single_platform_entry(
+            plat, label, songs, synced_map.get(plat), guild_id, channel_id
+        )
+        for plat, label in _PLATFORM_LABELS.items()
+    }
+
+
+class PlaylistManager:
+    """Manages playlists across supported platforms."""
 
     def __init__(self) -> None:
         self._youtube_creds: Credentials | None = None

@@ -75,11 +75,13 @@ def _default_profile(guild_id: str) -> dict[str, Any]:
         "auto_sync_playlists": True,
         "thread_card_enabled": True,
         "playlist_prefix": "Discord Playlist",
+        "playlist_urls": {},
         "updated_at": "",
     }
 
 
 def _row_to_profile(row: Any) -> dict[str, Any]:
+    raw_urls = row["playlist_urls"] if "playlist_urls" in row.keys() else "{}"
     return {
         "guild_id": row["guild_id"],
         "name": row["name"],
@@ -89,6 +91,7 @@ def _row_to_profile(row: Any) -> dict[str, Any]:
         "auto_sync_playlists": bool(row["auto_sync_playlists"]),
         "thread_card_enabled": bool(row["thread_card_enabled"]),
         "playlist_prefix": row["playlist_prefix"] or "Discord Playlist",
+        "playlist_urls": json.loads(raw_urls or "{}"),
         "updated_at": row["updated_at"] or "",
     }
 
@@ -110,10 +113,10 @@ async def get_server_profile_cached(guild_id: str) -> dict[str, Any]:
     now = time.monotonic()
     cached = _PROFILE_CACHE.get(guild_id)
     if cached is not None and (now - cached[0]) < _CACHE_TTL_SEC:
-        return cached[1]
+        return dict(cached[1])
     profile = await get_server_profile(guild_id)
     _PROFILE_CACHE[guild_id] = (now, profile)
-    return profile
+    return dict(profile)
 
 
 async def upsert_server_profile(
@@ -125,6 +128,7 @@ async def upsert_server_profile(
     auto_sync_playlists: bool | None = None,
     thread_card_enabled: bool | None = None,
     playlist_prefix: str | None = None,
+    playlist_urls: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Create or update a server profile and immediately refresh the in-memory cache."""
     current = await get_server_profile(guild_id)
@@ -153,11 +157,16 @@ async def upsert_server_profile(
             if playlist_prefix is not None and playlist_prefix.strip()
             else current["playlist_prefix"]
         ),
+        "playlist_urls": (
+            dict(playlist_urls)
+            if playlist_urls is not None
+            else dict(current.get("playlist_urls") or {})
+        ),
         "updated_at": _now(),
     }
     await _persist_profile(merged)
     _PROFILE_CACHE[guild_id] = (time.monotonic(), merged)
-    return merged
+    return dict(merged)
 
 
 async def _persist_profile(merged: dict[str, Any]) -> None:
@@ -165,8 +174,9 @@ async def _persist_profile(merged: dict[str, Any]) -> None:
         await db.execute(
             """INSERT INTO servers (
                    guild_id, name, icon_url, allowed_channels, enabled_platforms,
-                   auto_sync_playlists, thread_card_enabled, playlist_prefix, updated_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   auto_sync_playlists, thread_card_enabled, playlist_prefix,
+                   playlist_urls, updated_at
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(guild_id) DO UPDATE SET
                    name = excluded.name,
                    icon_url = excluded.icon_url,
@@ -175,6 +185,7 @@ async def _persist_profile(merged: dict[str, Any]) -> None:
                    auto_sync_playlists = excluded.auto_sync_playlists,
                    thread_card_enabled = excluded.thread_card_enabled,
                    playlist_prefix = excluded.playlist_prefix,
+                   playlist_urls = excluded.playlist_urls,
                    updated_at = excluded.updated_at""",
             (
                 merged["guild_id"],
@@ -185,6 +196,7 @@ async def _persist_profile(merged: dict[str, Any]) -> None:
                 1 if merged["auto_sync_playlists"] else 0,
                 1 if merged["thread_card_enabled"] else 0,
                 merged["playlist_prefix"],
+                json.dumps(merged.get("playlist_urls") or {}),
                 merged["updated_at"],
             ),
         )
@@ -254,14 +266,45 @@ async def save_user_guilds(user_id: str, guilds: list[dict[str, Any]]) -> None:
         await db.commit()
 
 
+def _bot_admin_ids() -> set[str]:
+    return {x.strip() for x in os.environ.get("BOT_ADMIN_IDS", "").split(",") if x.strip()}
+
+
+async def get_user_guild_ids(user: dict[str, Any] | None) -> set[str] | None:
+    """Return the set of guild IDs the user belongs to, or None if user is a global bot admin."""
+    if not user or not user.get("id"):
+        return set()
+    uid = str(user["id"])
+    if uid in _bot_admin_ids():
+        return None
+    gids = set(user.get("guilds") or []) | set(user.get("manage_guilds") or [])
+    async with get_db() as db:
+        rows = await db.execute_fetchall(
+            "SELECT guild_id FROM user_guilds WHERE user_id = ?",
+            (uid,),
+        )
+        for r in rows:
+            gids.add(str(r["guild_id"]))
+    return gids
+
+
+async def can_user_view_guild(user: dict[str, Any] | None, guild_id: str) -> bool:
+    """Return True if the authenticated user is a member of the given guild (or bot admin)."""
+    if not user or not user.get("id") or not guild_id:
+        return False
+    allowed = await get_user_guild_ids(user)
+    return True if allowed is None else (guild_id in allowed)
+
+
 async def can_user_manage_guild(user: dict[str, Any] | None, guild_id: str) -> bool:
-    """Return True if the authenticated user can configure the given guild."""
+    """Return True if the authenticated user can configure/edit the given guild."""
     if not user or not user.get("id"):
         return False
     uid = str(user["id"])
-    admin_ids = {x.strip() for x in os.environ.get("BOT_ADMIN_IDS", "").split(",") if x.strip()}
-    if uid in admin_ids:
+    if uid in _bot_admin_ids():
         return True
+    if not guild_id:
+        return False
     if guild_id in (user.get("manage_guilds") or []):
         return True
     async with get_db() as db:
@@ -272,8 +315,38 @@ async def can_user_manage_guild(user: dict[str, Any] | None, guild_id: str) -> b
         return bool(rows and rows[0]["can_manage"])
 
 
+def _merge_server_rows(
+    srv_rows: Any,
+    song_guilds: Any,
+    ug_rows: Any,
+) -> tuple[dict[str, dict[str, Any]], set[str]]:
+    by_id: dict[str, dict[str, Any]] = {}
+    for row in srv_rows:
+        prof = _row_to_profile(row)
+        by_id[prof["guild_id"]] = {**prof, "can_manage": False, "bot_installed": True}
+    for row in song_guilds:
+        gid = row["guild_id"]
+        if gid not in by_id:
+            by_id[gid] = {**_default_profile(gid), "can_manage": False, "bot_installed": True}
+    member_gids: set[str] = set()
+    for row in ug_rows:
+        gid = row["guild_id"]
+        member_gids.add(gid)
+        entry = by_id.get(gid) or {
+            **_default_profile(gid),
+            "name": row["guild_name"],
+            "icon_url": row["guild_icon"] or "",
+            "bot_installed": False,
+        }
+        if row["guild_icon"] and not entry.get("icon_url"):
+            entry["icon_url"] = row["guild_icon"]
+        entry["can_manage"] = bool(row["can_manage"])
+        by_id[gid] = entry
+    return by_id, member_gids
+
+
 async def list_servers(user: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-    """Return all known servers merged with the current user's guilds and permissions."""
+    """Return servers visible to the user (or all servers when user=None for internal queries)."""
     uid = str(user["id"]) if user and user.get("id") else None
     async with get_db() as db:
         srv_rows = await db.execute_fetchall("SELECT * FROM servers ORDER BY name")
@@ -289,31 +362,16 @@ async def list_servers(user: dict[str, Any] | None = None) -> list[dict[str, Any
             else []
         )
 
-    by_id: dict[str, dict[str, Any]] = {}
-    for row in srv_rows:
-        prof = _row_to_profile(row)
-        by_id[prof["guild_id"]] = {**prof, "can_manage": False, "bot_installed": True}
-    for row in song_guilds:
-        gid = row["guild_id"]
-        if gid not in by_id:
-            by_id[gid] = {**_default_profile(gid), "can_manage": False, "bot_installed": True}
-    for row in ug_rows:
-        gid = row["guild_id"]
-        entry = by_id.get(gid) or {
-            **_default_profile(gid),
-            "name": row["guild_name"],
-            "icon_url": row["guild_icon"] or "",
-            "bot_installed": False,
-        }
-        if row["guild_icon"] and not entry.get("icon_url"):
-            entry["icon_url"] = row["guild_icon"]
-        entry["can_manage"] = bool(row["can_manage"])
-        by_id[gid] = entry
-
-    if user:
+    by_id, member_gids = _merge_server_rows(srv_rows, song_guilds, ug_rows)
+    if user and uid:
+        is_bot_admin = uid in _bot_admin_ids()
+        explicit_manage = set(user.get("manage_guilds") or [])
+        member_gids |= explicit_manage | set(user.get("guilds") or [])
         for gid, entry in by_id.items():
-            if not entry.get("can_manage"):
-                entry["can_manage"] = await can_user_manage_guild(user, gid)
+            if not entry.get("can_manage") and (is_bot_admin or gid in explicit_manage):
+                entry["can_manage"] = True
+        if not is_bot_admin:
+            return [v for k, v in by_id.items() if k in member_gids]
     return list(by_id.values())
 
 
@@ -338,10 +396,29 @@ def _clean_platform_list(plats: Any) -> tuple[list[str] | None, str | None]:
     cleaned: list[str] = []
     for p in plats:
         s = str(p).strip().lower()
-        if s not in _VALID_PLATFORMS:
+        if s not in _VALID_PLATFORMS and s != "soundcloud":
             return None, f"Unsupported platform: {s}"
         if s not in cleaned:
             cleaned.append(s)
+    return cleaned, None
+
+
+def _clean_playlist_urls(urls_map: Any) -> tuple[dict[str, str] | None, str | None]:
+    if not isinstance(urls_map, dict):
+        return None, "playlist_urls must be a JSON object"
+    cleaned: dict[str, str] = {}
+    for k, v in urls_map.items():
+        plat = str(k).strip().lower()
+        if plat == "sound_cloud":
+            plat = "soundcloud"
+        if plat not in _VALID_PLATFORMS and plat != "soundcloud":
+            return None, f"Unsupported playlist platform: {plat}"
+        val = str(v or "").strip()
+        if not val:
+            continue
+        if not val.startswith("https://") or len(val) > 512:
+            return None, f"Invalid playlist URL for {plat} (must start with https://)"
+        cleaned[plat] = val
     return cleaned, None
 
 
@@ -373,6 +450,12 @@ def validate_server_config_payload(
         if err:
             return None, err
         clean["enabled_platforms"] = cleaned_plats
+
+    if "playlist_urls" in payload and payload["playlist_urls"] is not None:
+        cleaned_urls, err = _clean_playlist_urls(payload["playlist_urls"])
+        if err:
+            return None, err
+        clean["playlist_urls"] = cleaned_urls
 
     if "auto_sync_playlists" in payload:
         clean["auto_sync_playlists"] = bool(payload["auto_sync_playlists"])

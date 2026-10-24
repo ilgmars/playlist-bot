@@ -162,6 +162,95 @@
         </div>
       </div>
 
+      <section class="playlists-strip" id="playlists-strip" aria-labelledby="playlists-heading">
+        <div class="playlists-strip-head">
+          <div>
+            <h2 id="playlists-heading" class="playlists-strip-title">Platform Playlists</h2>
+            <p class="playlists-strip-sub">Open live playlists on Spotify, YouTube, YT Music, Apple Music, Deezer, SoundCloud &amp; Tidal, copy track URIs, or export per-platform M3U.</p>
+          </div>
+          <a href="/api/export.m3u" class="export-btn" id="strip-export-all-btn" download="playlist.m3u">All Tracks (.m3u)</a>
+        </div>
+        <div class="playlists-strip-grid" id="playlists-strip-grid">
+          <div class="playlist-pill-card" data-platform="spotify">
+            <div class="playlist-pill-top">
+              <span class="platform-badge spotify">Spotify</span>
+              <span class="playlist-pill-meta" id="pl-count-spotify">0 tracks</span>
+            </div>
+            <div class="playlist-pill-actions">
+              <a href="/playlists/spotify" target="_blank" rel="noopener" class="playlist-open-btn" id="pl-open-spotify">Open Playlist</a>
+              <button type="button" class="playlist-copy-btn" onclick="copyPlatformTracks('spotify', this)">Copy URIs</button>
+              <a href="/api/export.m3u?platform=spotify" class="playlist-m3u-link" download="playlist-spotify.m3u">.m3u</a>
+            </div>
+          </div>
+          <div class="playlist-pill-card" data-platform="youtube">
+            <div class="playlist-pill-top">
+              <span class="platform-badge youtube">YouTube</span>
+              <span class="playlist-pill-meta" id="pl-count-youtube">0 tracks</span>
+            </div>
+            <div class="playlist-pill-actions">
+              <a href="/playlists/youtube" target="_blank" rel="noopener" class="playlist-open-btn" id="pl-open-youtube">Play Queue</a>
+              <button type="button" class="playlist-copy-btn" onclick="copyPlatformTracks('youtube', this)">Copy Links</button>
+              <a href="/api/export.m3u?platform=youtube" class="playlist-m3u-link" download="playlist-youtube.m3u">.m3u</a>
+            </div>
+          </div>
+          <div class="playlist-pill-card" data-platform="youtube_music">
+            <div class="playlist-pill-top">
+              <span class="platform-badge youtube_music">YT Music</span>
+              <span class="playlist-pill-meta" id="pl-count-youtube_music">0 tracks</span>
+            </div>
+            <div class="playlist-pill-actions">
+              <a href="/playlists/youtube_music" target="_blank" rel="noopener" class="playlist-open-btn" id="pl-open-youtube_music">Play Queue</a>
+              <button type="button" class="playlist-copy-btn" onclick="copyPlatformTracks('youtube_music', this)">Copy Links</button>
+              <a href="/api/export.m3u?platform=youtube_music" class="playlist-m3u-link" download="playlist-youtube_music.m3u">.m3u</a>
+            </div>
+          </div>
+          <div class="playlist-pill-card" data-platform="apple_music">
+            <div class="playlist-pill-top">
+              <span class="platform-badge apple_music">Apple Music</span>
+              <span class="playlist-pill-meta" id="pl-count-apple_music">0 tracks</span>
+            </div>
+            <div class="playlist-pill-actions">
+              <a href="/playlists/apple_music" target="_blank" rel="noopener" class="playlist-open-btn" id="pl-open-apple_music">Open Playlist</a>
+              <button type="button" class="playlist-copy-btn" onclick="copyPlatformTracks('apple_music', this)">Copy Links</button>
+              <a href="/api/export.m3u?platform=apple_music" class="playlist-m3u-link" download="playlist-apple_music.m3u">.m3u</a>
+            </div>
+          </div>
+          <div class="playlist-pill-card" data-platform="deezer">
+            <div class="playlist-pill-top">
+              <span class="platform-badge deezer">Deezer</span>
+              <span class="playlist-pill-meta" id="pl-count-deezer">0 tracks</span>
+            </div>
+            <div class="playlist-pill-actions">
+              <a href="/playlists/deezer" target="_blank" rel="noopener" class="playlist-open-btn" id="pl-open-deezer">Open Playlist</a>
+              <button type="button" class="playlist-copy-btn" onclick="copyPlatformTracks('deezer', this)">Copy Links</button>
+              <a href="/api/export.m3u?platform=deezer" class="playlist-m3u-link" download="playlist-deezer.m3u">.m3u</a>
+            </div>
+          </div>
+          <div class="playlist-pill-card" data-platform="soundcloud">
+            <div class="playlist-pill-top">
+              <span class="platform-badge soundcloud">SoundCloud</span>
+              <span class="playlist-pill-meta" id="pl-count-soundcloud">0 tracks</span>
+            </div>
+            <div class="playlist-pill-actions">
+              <a href="/playlists/soundcloud" target="_blank" rel="noopener" class="playlist-open-btn" id="pl-open-soundcloud">Open Playlist</a>
+              <button type="button" class="playlist-copy-btn" onclick="copyPlatformTracks('soundcloud', this)">Copy Links</button>
+              <a href="/api/export.m3u?platform=soundcloud" class="playlist-m3u-link" download="playlist-soundcloud.m3u">.m3u</a>
+            </div>
+          </div>
+          <div class="playlist-pill-card" data-platform="tidal">
+            <div class="playlist-pill-top">
+              <span class="platform-badge tidal">Tidal</span>
+              <span class="playlist-pill-meta" id="pl-count-tidal">0 tracks</span>
+            </div>
+            <div class="playlist-pill-actions">
+              <a href="/playlists/tidal" target="_blank" rel="noopener" class="playlist-open-btn" id="pl-open-tidal">Open Playlist</a>
+              <button type="button" class="playlist-copy-btn" onclick="copyPlatformTracks('tidal', this)">Copy Links</button>
+              <a href="/api/export.m3u?platform=tidal" class="playlist-m3u-link" download="playlist-tidal.m3u">.m3u</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <div class="toolbar" role="search" aria-label="Filter songs">
         <div class="search-wrapper">
           <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -282,6 +371,23 @@
           <label class="check-chip"><input type="checkbox" value="soundcloud"><span>SoundCloud</span></label>
           <label class="check-chip"><input type="checkbox" value="bandcamp"><span>Bandcamp</span></label>
           <label class="check-chip"><input type="checkbox" value="tidal"><span>Tidal</span></label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <span class="field-label">Linked Server Playlists (optional https:// URLs)</span>
+        <input type="url" id="cfg-pl-spotify" class="text-input" placeholder="Spotify Playlist URL (https://open.spotify.com/playlist/...)">
+        <input type="url" id="cfg-pl-youtube" class="text-input" placeholder="YouTube Playlist URL (https://www.youtube.com/playlist?list=...)">
+        <input type="url" id="cfg-pl-apple_music" class="text-input" placeholder="Apple Music Playlist URL (https://music.apple.com/...)">
+      </div>
+
+      <div class="form-group">
+        <span class="field-label">Add Track to Server Playlist (Admin)</span>
+        <input type="text" id="cfg-add-title" class="text-input" maxlength="120" placeholder="Track title (e.g. Nightcall)">
+        <input type="text" id="cfg-add-artist" class="text-input" maxlength="120" placeholder="Artist (e.g. Kavinsky)">
+        <div class="guild-picker-row">
+          <input type="url" id="cfg-add-url" class="text-input" placeholder="https://open.spotify.com/track/...">
+          <button type="button" class="secondary-btn" onclick="addServerSongFromDrawer()">+ Add Track</button>
         </div>
       </div>
 
@@ -444,6 +550,11 @@
         document.getElementById('cfg-allowed-channels').value = (cfg.allowed_channels || []).join(', ');
         document.getElementById('cfg-thread-card').checked = Boolean(cfg.thread_card_enabled);
         document.getElementById('cfg-auto-sync').checked = Boolean(cfg.auto_sync_playlists);
+        const plUrls = cfg.playlist_urls || {};
+        ['spotify', 'youtube', 'apple_music'].forEach(p => {
+          const el = document.getElementById(`cfg-pl-${p}`);
+          if (el) el.value = plUrls[p] || '';
+        });
 
         const enabledSet = new Set(cfg.enabled_platforms || []);
         document.querySelectorAll('#cfg-platforms input[type="checkbox"]').forEach(cb => {
@@ -496,11 +607,18 @@
       const platforms = Array.from(document.querySelectorAll('#cfg-platforms input[type="checkbox"]:checked'))
         .map(cb => cb.value);
 
+      const playlistUrls = {};
+      ['spotify', 'youtube', 'apple_music'].forEach(p => {
+        const val = document.getElementById(`cfg-pl-${p}`)?.value.trim();
+        if (val) playlistUrls[p] = val;
+      });
+
       const body = {
         name: document.getElementById('cfg-server-name')?.value.trim() || `Server ${gid}`,
         playlist_prefix: document.getElementById('cfg-playlist-prefix')?.value.trim() || 'Discord Playlist',
         allowed_channels: channels,
         enabled_platforms: platforms,
+        playlist_urls: playlistUrls,
         thread_card_enabled: Boolean(document.getElementById('cfg-thread-card')?.checked),
         auto_sync_playlists: Boolean(document.getElementById('cfg-auto-sync')?.checked),
       };
@@ -661,11 +779,178 @@
       updateEmptyState();
     }
 
+    let cachedPlatformPlaylists = {};
+
+    async function refreshPlatformPlaylists() {
+      const { channelId, guildId } = getActiveFilters();
+      const params = new URLSearchParams();
+      if (channelId) params.set('channel_id', channelId);
+      if (guildId) params.set('guild_id', guildId);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const stripAllBtn = document.getElementById('strip-export-all-btn');
+      if (stripAllBtn) stripAllBtn.href = `/api/export.m3u${qs}`;
+
+      try {
+        const resp = await fetch(`/api/playlists${qs}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          cachedPlatformPlaylists = data.playlists || {};
+          Object.entries(cachedPlatformPlaylists).forEach(([plat, info]) => {
+            const countEl = document.getElementById(`pl-count-${plat}`);
+            const openEl = document.getElementById(`pl-open-${plat}`);
+            const card = document.querySelector(`.playlist-pill-card[data-platform="${plat}"]`);
+            if (countEl) {
+              const tag = info.mode === 'synced' ? ' · Synced' : (info.mode === 'instant_queue' ? ' · Queue' : '');
+              countEl.textContent = `${info.track_count} track${info.track_count === 1 ? '' : 's'}${tag}`;
+            }
+            if (openEl && info.open_url) {
+              openEl.href = info.open_url;
+            }
+            if (card) {
+              const m3uLink = card.querySelector('.playlist-m3u-link');
+              if (m3uLink && info.export_m3u_url) m3uLink.href = info.export_m3u_url;
+            }
+          });
+          return;
+        }
+      } catch (e) {
+        // Fallback for static demo mode
+      }
+      updatePlaylistsFromDom();
+    }
+
+    function updatePlaylistsFromDom() {
+      const byPlat = {};
+      const ytIds = [];
+      document.querySelectorAll('#songs-grid .song-card:not([style*="display: none"]) .platform-badge').forEach(a => {
+        const raw = a.dataset.platform || '';
+        const plat = raw === 'sound_cloud' ? 'soundcloud' : raw;
+        const href = a.getAttribute('href') || '';
+        if (!byPlat[plat]) byPlat[plat] = [];
+        if (href && !byPlat[plat].includes(href)) byPlat[plat].push(href);
+        if (plat === 'youtube' || plat === 'youtube_music') {
+          const m = href.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+          if (m && !ytIds.includes(m[1])) ytIds.push(m[1]);
+        }
+      });
+      ['spotify', 'youtube', 'youtube_music', 'apple_music', 'deezer', 'soundcloud', 'tidal'].forEach(plat => {
+        const urls = (plat === 'youtube' || plat === 'youtube_music')
+          ? Array.from(new Set([...(byPlat.youtube || []), ...(byPlat.youtube_music || [])]))
+          : (byPlat[plat] || []);
+        const countEl = document.getElementById(`pl-count-${plat}`);
+        const openEl = document.getElementById(`pl-open-${plat}`);
+        if (countEl) countEl.textContent = `${urls.length} track${urls.length === 1 ? '' : 's'}`;
+        if (openEl) {
+          if ((plat === 'youtube' || plat === 'youtube_music') && ytIds.length > 0) {
+            openEl.href = `https://www.youtube.com/watch_videos?video_ids=${ytIds.slice(0, 50).join(',')}`;
+          } else if (urls.length > 0) {
+            openEl.href = urls[0];
+          }
+        }
+        cachedPlatformPlaylists[plat] = {
+          track_urls: urls,
+          track_uris: plat === 'spotify'
+            ? urls.map(u => {
+                const m = u.match(/\/track\/([A-Za-z0-9]{22})/);
+                return m ? `spotify:track:${m[1]}` : u;
+              })
+            : urls,
+        };
+      });
+    }
+
+    async function addServerSongFromDrawer() {
+      const gid = document.getElementById('cfg-guild-id')?.value.trim();
+      const statusEl = document.getElementById('cfg-status');
+      const title = document.getElementById('cfg-add-title')?.value.trim();
+      const artist = document.getElementById('cfg-add-artist')?.value.trim() || 'Unknown';
+      const url = document.getElementById('cfg-add-url')?.value.trim();
+      if (!gid || !title || !url) {
+        if (statusEl) statusEl.textContent = 'Select a server and enter track title + https:// URL.';
+        return;
+      }
+      try {
+        const resp = await fetch(`/api/servers/${encodeURIComponent(gid)}/songs`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, artist, url }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          if (statusEl) statusEl.textContent = data.error || 'Failed to add track.';
+          return;
+        }
+        document.getElementById('cfg-add-title').value = '';
+        document.getElementById('cfg-add-artist').value = '';
+        document.getElementById('cfg-add-url').value = '';
+        if (statusEl) statusEl.textContent = `Added "${data.title}" to playlist.`;
+        const { channelId, guildId } = getActiveFilters();
+        if (window.htmx) {
+          htmx.ajax('GET', buildSongsApiUrl(channelId, guildId, currentSort), { target: '#songs-grid', swap: 'innerHTML' });
+        }
+        refreshPlatformPlaylists();
+      } catch (e) {
+        if (statusEl) statusEl.textContent = 'Network error adding track.';
+      }
+    }
+
+    async function promptEditSong(songId, btnEl) {
+      const card = btnEl.closest('.song-card');
+      const curTitle = card?.querySelector('.song-title')?.textContent.trim() || '';
+      const curArtist = card?.querySelector('.song-artist')?.textContent.trim() || '';
+      const title = window.prompt('Edit track title:', curTitle);
+      if (title === null || !title.trim()) return;
+      const artist = window.prompt('Edit artist:', curArtist);
+      if (artist === null || !artist.trim()) return;
+      try {
+        const resp = await fetch(`/api/songs/${encodeURIComponent(songId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: title.trim(), artist: artist.trim() }),
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (card) {
+          const tEl = card.querySelector('.song-title');
+          const aEl = card.querySelector('.song-artist');
+          if (tEl) tEl.textContent = data.title;
+          if (aEl) aEl.textContent = data.artist;
+        }
+      } catch (e) {}
+    }
+
+    async function deleteSongCard(songId, btnEl) {
+      const card = btnEl.closest('.song-card');
+      try {
+        const resp = await fetch(`/api/songs/${encodeURIComponent(songId)}`, { method: 'DELETE' });
+        if (!resp.ok) return;
+        if (card) card.remove();
+        updateStats();
+        updateEmptyState();
+        refreshPlatformPlaylists();
+      } catch (e) {}
+    }
+
+    async function copyPlatformTracks(plat, btnEl) {
+      const info = cachedPlatformPlaylists[plat];
+      const list = info ? (info.track_uris || info.track_urls || []) : [];
+      if (!list.length) return;
+      try {
+        await navigator.clipboard.writeText(list.join('\n'));
+        const orig = btnEl.textContent;
+        btnEl.textContent = 'Copied!';
+        setTimeout(() => { btnEl.textContent = orig; }, 1400);
+      } catch (e) {
+        window.open(`/api/playlists/${encodeURIComponent(plat)}/tracks.txt`, '_blank');
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       syncExportAndInviteLinks();
       updateStats();
       updatePlatformFilters();
       updateEmptyState();
+      refreshPlatformPlaylists();
     });
 
     document.addEventListener('htmx:afterSwap', function(evt) {
@@ -677,6 +962,7 @@
           filterSearch(searchEl);
         }
         updateEmptyState();
+        refreshPlatformPlaylists();
       } else {
         updateStats();
       }

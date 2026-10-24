@@ -157,6 +157,95 @@
         </div>
       </div>
 
+      <section class="playlists-strip" id="playlists-strip" aria-labelledby="playlists-heading">
+        <div class="playlists-strip-head">
+          <div>
+            <h2 id="playlists-heading" class="playlists-strip-title">Platform Playlists</h2>
+            <p class="playlists-strip-sub">Open live playlists on Spotify, YouTube, YT Music, Apple Music, Deezer, SoundCloud &amp; Tidal, copy track URIs, or export per-platform M3U.</p>
+          </div>
+          <button type="button" class="export-btn" onclick="exportDemoM3U()">All Tracks (.m3u)</button>
+        </div>
+        <div class="playlists-strip-grid" id="playlists-strip-grid">
+          <div class="playlist-pill-card" data-platform="spotify">
+            <div class="playlist-pill-top">
+              <span class="platform-badge spotify">Spotify</span>
+              <span class="playlist-pill-meta" id="pl-count-spotify">3 tracks</span>
+            </div>
+            <div class="playlist-pill-actions">
+              <a href="https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT" target="_blank" rel="noopener" class="playlist-open-btn" id="pl-open-spotify">Open Playlist</a>
+              <button type="button" class="playlist-copy-btn" onclick="copyPlatformTracks('spotify', this)">Copy URIs</button>
+              <button type="button" class="playlist-m3u-link" onclick="exportDemoM3U('spotify')">.m3u</button>
+            </div>
+          </div>
+          <div class="playlist-pill-card" data-platform="youtube">
+            <div class="playlist-pill-top">
+              <span class="platform-badge youtube">YouTube</span>
+              <span class="playlist-pill-meta" id="pl-count-youtube">4 tracks · Queue</span>
+            </div>
+            <div class="playlist-pill-actions">
+              <a href="https://www.youtube.com/watch_videos?video_ids=dQw4w9WgXcQ,fJ9rUzIMcZQ,u7K72X4eo_s,1uYWYWPc9HU" target="_blank" rel="noopener" class="playlist-open-btn" id="pl-open-youtube">Play Queue</a>
+              <button type="button" class="playlist-copy-btn" onclick="copyPlatformTracks('youtube', this)">Copy Links</button>
+              <button type="button" class="playlist-m3u-link" onclick="exportDemoM3U('youtube')">.m3u</button>
+            </div>
+          </div>
+          <div class="playlist-pill-card" data-platform="youtube_music">
+            <div class="playlist-pill-top">
+              <span class="platform-badge youtube_music">YT Music</span>
+              <span class="playlist-pill-meta" id="pl-count-youtube_music">4 tracks · Queue</span>
+            </div>
+            <div class="playlist-pill-actions">
+              <a href="https://www.youtube.com/watch_videos?video_ids=dQw4w9WgXcQ,fJ9rUzIMcZQ,u7K72X4eo_s,1uYWYWPc9HU" target="_blank" rel="noopener" class="playlist-open-btn" id="pl-open-youtube_music">Play Queue</a>
+              <button type="button" class="playlist-copy-btn" onclick="copyPlatformTracks('youtube_music', this)">Copy Links</button>
+              <button type="button" class="playlist-m3u-link" onclick="exportDemoM3U('youtube_music')">.m3u</button>
+            </div>
+          </div>
+          <div class="playlist-pill-card" data-platform="apple_music">
+            <div class="playlist-pill-top">
+              <span class="platform-badge apple_music">Apple Music</span>
+              <span class="playlist-pill-meta" id="pl-count-apple_music">1 track</span>
+            </div>
+            <div class="playlist-pill-actions">
+              <a href="https://music.apple.com/us/song/bohemian-rhapsody/1440806723" target="_blank" rel="noopener" class="playlist-open-btn" id="pl-open-apple_music">Open Playlist</a>
+              <button type="button" class="playlist-copy-btn" onclick="copyPlatformTracks('apple_music', this)">Copy Links</button>
+              <button type="button" class="playlist-m3u-link" onclick="exportDemoM3U('apple_music')">.m3u</button>
+            </div>
+          </div>
+          <div class="playlist-pill-card" data-platform="deezer">
+            <div class="playlist-pill-top">
+              <span class="platform-badge deezer">Deezer</span>
+              <span class="playlist-pill-meta" id="pl-count-deezer">1 track</span>
+            </div>
+            <div class="playlist-pill-actions">
+              <a href="https://www.deezer.com/track/3135556" target="_blank" rel="noopener" class="playlist-open-btn" id="pl-open-deezer">Open Playlist</a>
+              <button type="button" class="playlist-copy-btn" onclick="copyPlatformTracks('deezer', this)">Copy Links</button>
+              <button type="button" class="playlist-m3u-link" onclick="exportDemoM3U('deezer')">.m3u</button>
+            </div>
+          </div>
+          <div class="playlist-pill-card" data-platform="soundcloud">
+            <div class="playlist-pill-top">
+              <span class="platform-badge soundcloud">SoundCloud</span>
+              <span class="playlist-pill-meta" id="pl-count-soundcloud">2 tracks</span>
+            </div>
+            <div class="playlist-pill-actions">
+              <a href="https://soundcloud.com/m83/midnight-city" target="_blank" rel="noopener" class="playlist-open-btn" id="pl-open-soundcloud">Open Playlist</a>
+              <button type="button" class="playlist-copy-btn" onclick="copyPlatformTracks('soundcloud', this)">Copy Links</button>
+              <button type="button" class="playlist-m3u-link" onclick="exportDemoM3U('soundcloud')">.m3u</button>
+            </div>
+          </div>
+          <div class="playlist-pill-card" data-platform="tidal">
+            <div class="playlist-pill-top">
+              <span class="platform-badge tidal">Tidal</span>
+              <span class="playlist-pill-meta" id="pl-count-tidal">1 track</span>
+            </div>
+            <div class="playlist-pill-actions">
+              <a href="https://tidal.com/browse/track/584514" target="_blank" rel="noopener" class="playlist-open-btn" id="pl-open-tidal">Open Playlist</a>
+              <button type="button" class="playlist-copy-btn" onclick="copyPlatformTracks('tidal', this)">Copy Links</button>
+              <button type="button" class="playlist-m3u-link" onclick="exportDemoM3U('tidal')">.m3u</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <div class="toolbar" role="search" aria-label="Filter songs">
         <div class="search-wrapper">
           <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -612,13 +701,19 @@
       cards.forEach(c => grid.appendChild(c));
     }
 
-    function exportDemoM3u() {
+    function exportDemoM3U(platform) {
       const cards = document.querySelectorAll('#songs-grid .song-card:not([style*="display: none"])');
       const lines = ['#EXTM3U', '#PLAYLIST:Discord Playlist'];
       cards.forEach(card => {
         const title = card.querySelector('.song-title')?.textContent.trim() || 'Unknown';
         const artist = card.querySelector('.song-artist')?.textContent.trim() || 'Unknown';
-        const link = card.querySelector('.platform-badge')?.getAttribute('href') || '';
+        let badge = card.querySelector('.platform-badge');
+        if (platform) {
+          badge = card.querySelector(`.platform-badge[data-platform="${platform}"]`);
+          if (!badge) return;
+        }
+        const link = badge?.getAttribute('href') || '';
+        if (!link) return;
         lines.push(`#EXTINF:-1,${artist} - ${title}`);
         lines.push(link);
       });
@@ -626,10 +721,11 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'playlist.m3u';
+      a.download = platform ? `playlist-${platform}.m3u` : 'playlist.m3u';
       a.click();
       URL.revokeObjectURL(url);
     }
+    const exportDemoM3u = exportDemoM3U;
 
     function updateStats() {
       const visibleCards = document.querySelectorAll('#songs-grid .song-card:not([style*="display: none"])');
@@ -770,10 +866,67 @@
       updateEmptyState();
     }
 
+    let cachedPlatformPlaylists = {};
+
+    function updatePlaylistsFromDom() {
+      const byPlat = {};
+      const ytIds = [];
+      document.querySelectorAll('#songs-grid .song-card:not([style*="display: none"]) .platform-badge').forEach(a => {
+        const raw = a.dataset.platform || '';
+        const plat = raw === 'sound_cloud' ? 'soundcloud' : raw;
+        const href = a.getAttribute('href') || '';
+        if (!byPlat[plat]) byPlat[plat] = [];
+        if (href && !byPlat[plat].includes(href)) byPlat[plat].push(href);
+        if (plat === 'youtube' || plat === 'youtube_music') {
+          const m = href.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+          if (m && !ytIds.includes(m[1])) ytIds.push(m[1]);
+        }
+      });
+      ['spotify', 'youtube', 'youtube_music', 'apple_music', 'deezer', 'soundcloud', 'tidal'].forEach(plat => {
+        const urls = (plat === 'youtube' || plat === 'youtube_music')
+          ? Array.from(new Set([...(byPlat.youtube || []), ...(byPlat.youtube_music || [])]))
+          : (byPlat[plat] || []);
+        const countEl = document.getElementById(`pl-count-${plat}`);
+        const openEl = document.getElementById(`pl-open-${plat}`);
+        const suffix = (plat === 'youtube' || plat === 'youtube_music') && ytIds.length > 0 ? ' · Queue' : '';
+        if (countEl) countEl.textContent = `${urls.length} track${urls.length === 1 ? '' : 's'}${suffix}`;
+        if (openEl) {
+          if ((plat === 'youtube' || plat === 'youtube_music') && ytIds.length > 0) {
+            openEl.href = `https://www.youtube.com/watch_videos?video_ids=${ytIds.slice(0, 50).join(',')}`;
+          } else if (urls.length > 0) {
+            openEl.href = urls[0];
+          }
+        }
+        cachedPlatformPlaylists[plat] = {
+          track_urls: urls,
+          track_uris: plat === 'spotify'
+            ? urls.map(u => {
+                const m = u.match(/\/track\/([A-Za-z0-9]{22})/);
+                return m ? `spotify:track:${m[1]}` : u;
+              })
+            : urls,
+        };
+      });
+    }
+
+    async function copyPlatformTracks(plat, btnEl) {
+      updatePlaylistsFromDom();
+      const info = cachedPlatformPlaylists[plat];
+      const list = info ? (info.track_uris || info.track_urls || []) : [];
+      if (!list.length) return;
+      try {
+        await navigator.clipboard.writeText(list.join('\n'));
+        const orig = btnEl.textContent;
+        btnEl.textContent = 'Copied!';
+        setTimeout(() => { btnEl.textContent = orig; }, 1400);
+      } catch (e) {}
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       syncDemoAuthUI();
       updatePlatformFilters();
       updateEmptyState();
+      updatePlaylistsFromDom();
     });
   </script>
 </body>

@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS servers (
     auto_sync_playlists INTEGER NOT NULL DEFAULT 1,
     thread_card_enabled INTEGER NOT NULL DEFAULT 1,
     playlist_prefix     TEXT NOT NULL DEFAULT 'Discord Playlist',
+    playlist_urls       TEXT NOT NULL DEFAULT '{}',
     updated_at          TEXT NOT NULL
 );
 
@@ -156,6 +157,12 @@ async def init_db() -> None:
             await conn.execute("ALTER TABLE songs ADD COLUMN channel_id TEXT")
         if "guild_id" not in col_names:
             await conn.execute("ALTER TABLE songs ADD COLUMN guild_id TEXT")
+        srv_cols = await conn.execute_fetchall("PRAGMA table_info(servers)")
+        srv_col_names = {c["name"] for c in srv_cols}
+        if "playlist_urls" not in srv_col_names:
+            await conn.execute(
+                "ALTER TABLE servers ADD COLUMN playlist_urls TEXT NOT NULL DEFAULT '{}'"
+            )
         for idx in INDEX_SQL:
             await conn.execute(idx)
         await conn.commit()
@@ -447,6 +454,67 @@ async def get_channels(guild_id: str | None = None) -> list[str]:
             ") ORDER BY channel_id"
         )
         return [r["channel_id"] for r in rows]
+
+
+async def get_song_by_id(song_id: str) -> dict | None:
+    """Fetch a single song by ID."""
+    async with get_db() as db:
+        rows = await db.execute_fetchall(
+            "SELECT id, title, artist, album, duration, created_at, links_json, "
+            "playlist_ids_json, added_by, channel_id, guild_id FROM songs WHERE id = ?",
+            (song_id,),
+        )
+        if not rows:
+            return None
+        row = rows[0]
+        return {
+            "id": row["id"],
+            "title": row["title"],
+            "artist": row["artist"],
+            "album": row["album"],
+            "duration": row["duration"],
+            "created_at": row["created_at"],
+            "links": json.loads(row["links_json"]),
+            "playlist_urls": json.loads(row["playlist_ids_json"]),
+            "added_by": row["added_by"],
+            "channel_id": row["channel_id"],
+            "guild_id": row["guild_id"],
+        }
+
+
+async def update_song_metadata(
+    song_id: str,
+    title: str | None = None,
+    artist: str | None = None,
+) -> dict | None:
+    """Update a song's title and/or artist and return the updated song."""
+    song = await get_song_by_id(song_id)
+    if not song:
+        return None
+    new_title = title if title is not None else song["title"]
+    new_artist = artist if artist is not None else song["artist"]
+    async with get_db() as db:
+        await db.execute(
+            "UPDATE songs SET title = ?, artist = ? WHERE id = ?",
+            (new_title, new_artist, song_id),
+        )
+        await db.commit()
+    song["title"] = new_title
+    song["artist"] = new_artist
+    return song
+
+
+async def delete_song(song_id: str) -> bool:
+    """Delete a song and its dedup/vote entries."""
+    song = await get_song_by_id(song_id)
+    if not song:
+        return False
+    async with get_db() as db:
+        await db.execute("DELETE FROM dedup WHERE song_id = ?", (song_id,))
+        await db.execute("DELETE FROM votes WHERE song_id = ?", (song_id,))
+        await db.execute("DELETE FROM songs WHERE id = ?", (song_id,))
+        await db.commit()
+    return True
 
 
 async def get_stats(channel_id: str | None = None, guild_id: str | None = None) -> dict:
