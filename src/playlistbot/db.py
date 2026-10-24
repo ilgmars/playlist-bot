@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS songs (
     links_json      TEXT NOT NULL DEFAULT '[]',
     playlist_ids_json TEXT NOT NULL DEFAULT '{}',
     added_by        TEXT,
-    message_id      TEXT
+    message_id      TEXT,
+    channel_id      TEXT
 );
 
 CREATE TABLE IF NOT EXISTS threads (
@@ -56,18 +57,46 @@ CREATE TABLE IF NOT EXISTS dedup (
     song_id       TEXT NOT NULL,
     added_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS votes (
+    song_id     TEXT NOT NULL,
+    user_id     TEXT NOT NULL,
+    username    TEXT,
+    avatar_url  TEXT,
+    value       INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (song_id, user_id)
+);
 """
 
 # Index for ordering by newest first
 INDEX_SQL = [
     "CREATE INDEX IF NOT EXISTS idx_songs_created ON songs(created_at DESC);",
     "CREATE INDEX IF NOT EXISTS idx_songs_status ON songs(status);",
+    "CREATE INDEX IF NOT EXISTS idx_songs_channel ON songs(channel_id);",
     "CREATE INDEX IF NOT EXISTS idx_dedup_song ON dedup(song_id);",
+    "CREATE INDEX IF NOT EXISTS idx_votes_song ON votes(song_id);",
 ]
 
 
 def _now() -> str:
     return datetime.now(tz=UTC).isoformat()
+
+
+def _serialize_links(links: list[SongLink]) -> str:
+    return json.dumps(
+        [
+            {
+                "platform": link.platform.value,
+                "original_url": link.original_url,
+                "canonical_url": link.canonical_url,
+                "track_id": link.track_id,
+                "added_by": link.added_by,
+                "message_id": link.message_id,
+            }
+            for link in links
+        ]
+    )
 
 
 @asynccontextmanager
@@ -88,6 +117,9 @@ async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as conn:
         conn.row_factory = aiosqlite.Row
         await conn.executescript(SCHEMA)
+        cols = await conn.execute_fetchall("PRAGMA table_info(songs)")
+        if not any(c["name"] == "channel_id" for c in cols):
+            await conn.execute("ALTER TABLE songs ADD COLUMN channel_id TEXT")
         for idx in INDEX_SQL:
             await conn.execute(idx)
         await conn.commit()
@@ -102,31 +134,20 @@ async def insert_song(
     album: str | None = None,
     duration: int | None = None,
     playlist_ids: dict[str, str] | None = None,
+    channel_id: str | None = None,
 ) -> str:
     """Insert a song and its dedup links. Returns the song id."""
     song_id = str(uuid.uuid4())
     now = _now()
-    links_json = json.dumps(
-        [
-            {
-                "platform": link.platform.value,
-                "original_url": link.original_url,
-                "canonical_url": link.canonical_url,
-                "track_id": link.track_id,
-                "added_by": link.added_by,
-                "message_id": link.message_id,
-            }
-            for link in links
-        ]
-    )
+    links_json = _serialize_links(links)
     playlists_json = json.dumps(playlist_ids or {})
 
     async with get_db() as db:
         await db.execute(
             """INSERT INTO songs
             (id, title, artist, album, duration, status, created_at, updated_at,
-             links_json, playlist_ids_json, added_by, message_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+             links_json, playlist_ids_json, added_by, message_id, channel_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 song_id,
                 title,
@@ -140,6 +161,7 @@ async def insert_song(
                 playlists_json,
                 added_by,
                 message_id,
+                channel_id,
             ),
         )
         for link in links:
@@ -159,29 +181,107 @@ async def is_known_link(canonical_url: str) -> bool:
         return len(rows) > 0
 
 
-async def get_songs_newest_first(limit: int = 50) -> list[dict]:
-    async with get_db() as db:
-        rows = await db.execute_fetchall(
-            "SELECT id, title, artist, album, created_at, links_json, playlist_ids_json "
-            "FROM songs ORDER BY created_at DESC LIMIT ?",
-            (limit,),
+async def _attach_votes(
+    db: aiosqlite.Connection,
+    songs: list[dict],
+    current_user_id: str | None = None,
+) -> None:
+    """Attach vote_count and user_voted to each song dictionary in-place."""
+    if not songs:
+        return
+    vote_rows = await db.execute_fetchall(
+        "SELECT song_id, COUNT(*) AS cnt FROM votes GROUP BY song_id"
+    )
+    counts = {r["song_id"]: int(r["cnt"]) for r in vote_rows}
+    voted_ids: set[str] = set()
+    if current_user_id:
+        u_rows = await db.execute_fetchall(
+            "SELECT song_id FROM votes WHERE user_id = ?",
+            (current_user_id,),
         )
-        songs = []
-        for row in rows:
-            links = json.loads(row["links_json"])
-            playlists = json.loads(row["playlist_ids_json"])
-            songs.append(
-                {
-                    "id": row["id"],
-                    "title": row["title"],
-                    "artist": row["artist"],
-                    "album": row["album"],
-                    "created_at": row["created_at"],
-                    "links": links,
-                    "playlist_urls": playlists,
-                }
+        voted_ids = {r["song_id"] for r in u_rows}
+    for song in songs:
+        sid = song["id"]
+        song["vote_count"] = counts.get(sid, 0)
+        song["user_voted"] = sid in voted_ids
+
+
+async def get_songs_newest_first(
+    limit: int = 50,
+    channel_id: str | None = None,
+    current_user_id: str | None = None,
+    sort_by: str = "newest",
+) -> list[dict]:
+    async with get_db() as db:
+        if channel_id:
+            rows = await db.execute_fetchall(
+                "SELECT id, title, artist, album, duration, created_at, links_json, "
+                "playlist_ids_json, added_by, channel_id "
+                "FROM songs WHERE channel_id = ? ORDER BY created_at DESC LIMIT ?",
+                (channel_id, limit),
+            )
+        else:
+            rows = await db.execute_fetchall(
+                "SELECT id, title, artist, album, duration, created_at, links_json, "
+                "playlist_ids_json, added_by, channel_id "
+                "FROM songs ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            )
+        songs = [
+            {
+                "id": row["id"],
+                "title": row["title"],
+                "artist": row["artist"],
+                "album": row["album"],
+                "duration": row["duration"],
+                "created_at": row["created_at"],
+                "links": json.loads(row["links_json"]),
+                "playlist_urls": json.loads(row["playlist_ids_json"]),
+                "added_by": row["added_by"],
+                "channel_id": row["channel_id"],
+            }
+            for row in rows
+        ]
+        await _attach_votes(db, songs, current_user_id=current_user_id)
+        if sort_by == "votes":
+            songs.sort(
+                key=lambda s: (s.get("vote_count", 0), s.get("created_at", "")), reverse=True
             )
         return songs
+
+
+async def toggle_vote(
+    song_id: str,
+    user_id: str,
+    username: str | None = None,
+    avatar_url: str | None = None,
+) -> dict:
+    """Toggle a user's upvote on a song and return the updated state."""
+    async with get_db() as db:
+        existing = await db.execute_fetchall(
+            "SELECT 1 FROM votes WHERE song_id = ? AND user_id = ?",
+            (song_id, user_id),
+        )
+        if existing:
+            await db.execute(
+                "DELETE FROM votes WHERE song_id = ? AND user_id = ?",
+                (song_id, user_id),
+            )
+            voted = False
+        else:
+            await db.execute(
+                "INSERT INTO votes (song_id, user_id, username, avatar_url, value, created_at) "
+                "VALUES (?, ?, ?, ?, 1, ?)",
+                (song_id, user_id, username, avatar_url, _now()),
+            )
+            voted = True
+        await db.commit()
+        count_rows = await db.execute_fetchall(
+            "SELECT COUNT(*) AS cnt FROM votes WHERE song_id = ?",
+            (song_id,),
+        )
+        count = int(count_rows[0]["cnt"]) if count_rows else 0
+        return {"song_id": song_id, "voted": voted, "vote_count": count}
 
 
 async def save_thread_state(
@@ -253,3 +353,58 @@ async def update_playlist_url(song_id: str, platform: Platform, url: str) -> Non
             (json.dumps(playlists), song_id),
         )
         await db.commit()
+
+
+async def get_playlists(channel_id: str | None = None) -> list[dict]:
+    """Return stored playlist records, optionally filtered by channel_id."""
+    async with get_db() as db:
+        if channel_id:
+            rows = await db.execute_fetchall(
+                "SELECT channel_id, platform, playlist_id, playlist_url, last_synced "
+                "FROM playlists WHERE channel_id = ? ORDER BY platform",
+                (channel_id,),
+            )
+        else:
+            rows = await db.execute_fetchall(
+                "SELECT channel_id, platform, playlist_id, playlist_url, last_synced "
+                "FROM playlists ORDER BY channel_id, platform"
+            )
+        return [dict(r) for r in rows]
+
+
+async def get_channels() -> list[str]:
+    """Return distinct non-empty channel_ids across songs, threads, and playlists."""
+    async with get_db() as db:
+        rows = await db.execute_fetchall(
+            "SELECT DISTINCT channel_id FROM ("
+            "  SELECT channel_id FROM songs WHERE channel_id IS NOT NULL AND channel_id != '' "
+            "  UNION "
+            "  SELECT channel_id FROM threads WHERE channel_id IS NOT NULL AND channel_id != '' "
+            "  UNION "
+            "  SELECT channel_id FROM playlists WHERE channel_id IS NOT NULL AND channel_id != ''"
+            ") ORDER BY channel_id"
+        )
+        return [r["channel_id"] for r in rows]
+
+
+async def get_stats(channel_id: str | None = None) -> dict:
+    """Compute summary statistics for songs, platforms, links, and contributors."""
+    songs = await get_songs_newest_first(limit=500, channel_id=channel_id)
+    platforms: dict[str, int] = {}
+    contributors: dict[str, int] = {}
+    total_links = 0
+    for song in songs:
+        added_by = song.get("added_by")
+        if added_by:
+            contributors[added_by] = contributors.get(added_by, 0) + 1
+        for link in song.get("links", []):
+            plat = link.get("platform", "unknown")
+            platforms[plat] = platforms.get(plat, 0) + 1
+            total_links += 1
+    return {
+        "total_songs": len(songs),
+        "total_links": total_links,
+        "total_votes": sum(int(s.get("vote_count", 0)) for s in songs),
+        "platforms": platforms,
+        "contributors": contributors,
+    }

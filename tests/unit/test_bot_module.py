@@ -458,3 +458,133 @@ class TestEvents:
 
         update_url.assert_not_awaited()
         url_lookup.assert_not_awaited()
+
+    async def test_on_message_ignores_disallowed_channel(self, monkeypatch):
+        monkeypatch.setenv("DISCORD_CHANNEL_IDS", "100, 200")
+        process = AsyncMock()
+        monkeypatch.setattr(botmod.bot, "process_commands", process)
+
+        await botmod.on_message(_message("https://youtu.be/a", channel_id=42))
+        process.assert_not_awaited()
+
+        await botmod.on_message(_message("hello", channel_id=100))
+        process.assert_awaited_once()
+
+    async def test_create_missing_playlists_empty_channel_noop(self, monkeypatch):
+        ids = AsyncMock()
+        monkeypatch.setattr(botmod, "_get_playlist_id", ids)
+        await botmod._create_missing_playlists("")
+        ids.assert_not_awaited()
+
+
+class TestSlashCommands:
+    async def test_playlist_create_cmd_without_credentials(self, monkeypatch):
+        monkeypatch.setattr(botmod, "_create_missing_playlists", AsyncMock())
+        interaction = SimpleNamespace(
+            channel_id=42,
+            response=SimpleNamespace(send_message=AsyncMock()),
+        )
+        await botmod.playlist_create_cmd.callback(interaction)
+        interaction.response.send_message.assert_awaited_once()
+        msg = interaction.response.send_message.await_args.args[0]
+        assert "42" in msg
+
+    async def test_playlist_create_cmd_with_existing_playlists(self, monkeypatch):
+        monkeypatch.setattr(botmod, "_create_missing_playlists", AsyncMock())
+        await dbmod.save_playlist_state(
+            "42", Platform.SPOTIFY, "sp-1", "https://open.spotify.com/playlist/sp-1"
+        )
+        interaction = SimpleNamespace(
+            channel_id=42,
+            response=SimpleNamespace(send_message=AsyncMock()),
+        )
+        await botmod.playlist_create_cmd.callback(interaction)
+        msg = interaction.response.send_message.await_args.args[0]
+        assert "Spotify" in msg
+        assert "https://open.spotify.com/playlist/sp-1" in msg
+
+    async def test_playlist_export_cmd_sends_m3u_file(self):
+        await dbmod.insert_song(
+            title="Track 1",
+            artist="Artist 1",
+            duration=180_000,
+            links=[
+                SimpleNamespace(
+                    platform=Platform.YOUTUBE,
+                    original_url="https://youtu.be/abc",
+                    canonical_url="https://youtu.be/abc",
+                    track_id="abc",
+                    added_by="u1",
+                    message_id="m1",
+                )
+            ],
+            channel_id="42",
+        )
+        interaction = SimpleNamespace(
+            channel_id=42,
+            response=SimpleNamespace(send_message=AsyncMock()),
+        )
+        await botmod.playlist_export_cmd.callback(interaction)
+        interaction.response.send_message.assert_awaited_once()
+        kwargs = interaction.response.send_message.await_args.kwargs
+        assert kwargs["file"].filename == "playlist.m3u"
+
+    async def test_playlist_links_cmd_shows_playlists_and_tracks(self):
+        await dbmod.save_playlist_state(
+            "42", Platform.YOUTUBE, "PL-1", "https://youtube.com/playlist?list=PL-1"
+        )
+        await dbmod.insert_song(
+            title="Song X",
+            artist="Artist X",
+            links=[
+                SimpleNamespace(
+                    platform=Platform.YOUTUBE,
+                    original_url="https://youtu.be/x",
+                    canonical_url="https://youtu.be/x",
+                    track_id="x",
+                    added_by="u1",
+                    message_id="m1",
+                )
+            ],
+            channel_id="42",
+        )
+        interaction = SimpleNamespace(
+            channel_id=42,
+            response=SimpleNamespace(send_message=AsyncMock()),
+        )
+        await botmod.playlist_links_cmd.callback(interaction)
+        msg = interaction.response.send_message.await_args.args[0]
+        assert "Youtube: https://youtube.com/playlist?list=PL-1" in msg
+        assert "Song X" in msg
+
+    async def test_playlist_stats_cmd_shows_counts(self):
+        song_id = await dbmod.insert_song(
+            title="Song Y",
+            artist="Artist Y",
+            links=[
+                SimpleNamespace(
+                    platform=Platform.SPOTIFY,
+                    original_url="https://open.spotify.com/track/y",
+                    canonical_url="https://open.spotify.com/track/y",
+                    track_id="y",
+                    added_by="alice",
+                    message_id="m2",
+                )
+            ],
+            added_by="alice",
+            channel_id="42",
+        )
+        await dbmod.update_playlist_url(
+            song_id, Platform.SPOTIFY, "https://open.spotify.com/playlist/sp"
+        )
+        channels = await dbmod.get_channels()
+        assert "42" in channels
+
+        interaction = SimpleNamespace(
+            channel_id=42,
+            response=SimpleNamespace(send_message=AsyncMock()),
+        )
+        await botmod.playlist_stats_cmd.callback(interaction)
+        msg = interaction.response.send_message.await_args.args[0]
+        assert "Songs: **1**" in msg
+        assert "Spotify: 1" in msg

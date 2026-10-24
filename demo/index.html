@@ -9,7 +9,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script>
-    // Theme persistence — no flash
     (function() {
       const saved = localStorage.getItem('theme');
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -20,11 +19,9 @@
   </script>
 </head>
 <body>
-  <!-- Exposed hairline grid overlay -->
   <div class="grid-overlay" aria-hidden="true"></div>
 
   <div class="dashboard">
-    <!-- Sidebar — sticky index -->
     <aside class="sidebar" aria-label="Navigation">
       <div class="brand">
         <svg class="brand-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -34,7 +31,7 @@
         </svg>
         <span class="brand-text">Playlist Bot</span>
       </div>
-      <p class="brand-sub">Cross-platform playlist collector</p>
+      <p class="brand-sub">Shared Discord queue</p>
 
       <nav class="nav-index" aria-label="Main navigation">
         <a href="#" class="nav-item active" aria-current="page">
@@ -92,54 +89,64 @@
       </div>
     </aside>
 
-    <!-- Main content -->
     <main class="main">
-      <!-- Header -->
       <header class="header">
         <div class="header-left">
           <h1 class="page-title">Dashboard</h1>
-          <p class="page-subtitle">Cross-platform playlist collector from Discord</p>
+          <p class="page-subtitle">Tracks shared in Discord, matched across streaming services</p>
         </div>
         <div class="header-right">
+          <div class="auth-slot" id="auth-slot">
+            <button type="button" class="discord-login-btn" id="discord-login-btn" onclick="demoLogin()">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+              </svg>
+              <span>Log in with Discord</span>
+            </button>
+            <div class="user-pill" id="user-pill" hidden>
+              <img class="user-avatar" id="user-avatar" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="">
+              <span class="user-name" id="user-name">ilgmars</span>
+              <button type="button" class="logout-btn" onclick="demoLogout()" title="Sign out">Sign out</button>
+            </div>
+          </div>
+          <button type="button" class="export-btn" id="export-m3u-btn" onclick="exportDemoM3u()">Export .m3u</button>
           <div class="status-dot" id="status-dot">
             <span id="status-text">Live</span>
           </div>
         </div>
       </header>
 
-      <!-- Stats bar -->
       <div class="stats" id="stats-bar">
         <div class="stat-card">
           <div class="stat-row">
-            <span class="stat-label">Songs Collected</span>
+            <span class="stat-label">Songs</span>
             <span class="stat-value" id="stat-songs">0</span>
           </div>
-          <span class="stat-delta" id="stat-songs-delta">—</span>
+          <span class="stat-delta" id="stat-songs-delta">in view</span>
         </div>
         <div class="stat-card">
           <div class="stat-row">
-            <span class="stat-label">Platforms Active</span>
+            <span class="stat-label">Platforms</span>
             <span class="stat-value" id="stat-platforms">0</span>
           </div>
           <span class="stat-delta" id="stat-platforms-delta">of 12 supported</span>
         </div>
         <div class="stat-card">
           <div class="stat-row">
-            <span class="stat-label">Total Links</span>
-            <span class="stat-value" id="stat-links">0</span>
+            <span class="stat-label">Votes</span>
+            <span class="stat-value" id="stat-votes">0</span>
           </div>
-          <span class="stat-delta" id="stat-links-delta">—</span>
+          <span class="stat-delta" id="stat-links-delta">0 links matched</span>
         </div>
         <div class="stat-card">
           <div class="stat-row">
-            <span class="stat-label">Last Update</span>
+            <span class="stat-label">Last Shared</span>
             <span class="stat-value" id="stat-last-update">—</span>
           </div>
-          <span class="stat-delta" id="stat-uptime">—</span>
+          <span class="stat-delta" id="stat-uptime">interactive demo</span>
         </div>
       </div>
 
-      <!-- Toolbar — search + platform filters -->
       <div class="toolbar" role="search" aria-label="Filter songs">
         <div class="search-wrapper">
           <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -149,141 +156,180 @@
           <input
             type="search"
             class="search-input"
-            placeholder="Search songs, artists, platforms…"
+            placeholder="Filter by song, artist, or service…"
             oninput="filterSearch(this)"
-            aria-label="Search songs"
+            aria-label="Filter songs"
             autocomplete="off"
           >
+        </div>
+        <div class="sort-group" role="group" aria-label="Sort songs">
+          <button type="button" class="sort-btn active" data-sort="newest" onclick="setSort('newest')">Newest</button>
+          <button type="button" class="sort-btn" data-sort="votes" onclick="setSort('votes')">Top Voted</button>
         </div>
         <div class="filter-chips" id="platform-filter" role="group" aria-label="Filter by platform"></div>
       </div>
 
-      <!-- Songs Section -->
       <section class="songs-section" aria-labelledby="songs-heading">
         <div class="section-head">
-          <h2 id="songs-heading" class="section-title">Latest Songs</h2>
+          <h2 id="songs-heading" class="section-title">Recent Tracks</h2>
           <span class="song-count" id="song-count">Loading…</span>
         </div>
 
         <div id="songs-grid" class="songs-grid" aria-live="polite">
-          <article class="song-card">
+          <article class="song-card" data-song-id="1" data-timestamp="2026-10-20T14:32:00Z">
             <div class="song-header">
               <div class="song-title-row">
                 <span class="song-title">Never Gonna Give You Up</span>
-                <time class="song-time">2026-10-20 14:32</time>
+                <div class="song-meta-right">
+                  <time class="song-time">2026-10-20 14:32</time>
+                  <button type="button" class="vote-btn" data-song-id="1" data-votes="14" data-voted="false" aria-pressed="false" aria-label="Upvote song (14 votes)" onclick="toggleDemoVote(this)">
+                    <svg class="vote-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>
+                    <span class="vote-count">14</span>
+                  </button>
+                </div>
               </div>
               <span class="song-artist">Rick Astley</span>
             </div>
             <div class="song-platforms">
-              <a href="#" class="platform-badge youtube" data-platform="youtube">
+              <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank" rel="noopener" class="platform-badge youtube" data-platform="youtube">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 7.657 0 12 0 12s0 4.343.502 5.814a3.016 3.016 0 0 0 2.122 2.136C4.495 20.456 12 20.456 12 20.456s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 16.343 24 12 24 12s0-4.343-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
                 YouTube
               </a>
-              <a href="#" class="platform-badge spotify" data-platform="spotify">
+              <a href="https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT" target="_blank" rel="noopener" class="platform-badge spotify" data-platform="spotify">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.521 17.34c-.63.405-1.416.628-2.172.654-.56.018-1.146-.086-1.587-.386-.206-.138-.707-.39-1.029-.57-.705-.39-1.446-.874-1.983-1.416-.65-.655-1.164-1.505-1.5-2.605-.29-1.027-.443-2.09-.443-3.143 0-1.28.146-2.402.45-3.356.526-1.16 1.26-2.072 2.21-2.75.292-.207.6-.385.92-.53.63-.29 1.418-.443 2.165-.443 1.047 0 1.97.16 2.73.472.76.312 1.447.82 1.98 1.54.247.333.427.756.527 1.27.18.98.27 2.05.27 3.187 0 1.197-.098 2.31-.288 3.34-.37 2.017-1.248 3.474-2.53 4.42z"/></svg>
                 Spotify
               </a>
             </div>
           </article>
 
-          <article class="song-card">
+          <article class="song-card" data-song-id="2" data-timestamp="2026-10-20T13:18:00Z">
             <div class="song-header">
               <div class="song-title-row">
                 <span class="song-title">Bohemian Rhapsody</span>
-                <time class="song-time">2026-10-20 13:18</time>
+                <div class="song-meta-right">
+                  <time class="song-time">2026-10-20 13:18</time>
+                  <button type="button" class="vote-btn" data-song-id="2" data-votes="19" data-voted="false" aria-pressed="false" aria-label="Upvote song (19 votes)" onclick="toggleDemoVote(this)">
+                    <svg class="vote-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>
+                    <span class="vote-count">19</span>
+                  </button>
+                </div>
               </div>
               <span class="song-artist">Queen</span>
             </div>
             <div class="song-platforms">
-              <a href="#" class="platform-badge youtube" data-platform="youtube">
+              <a href="https://www.youtube.com/watch?v=fJ9rUzIMcZQ" target="_blank" rel="noopener" class="platform-badge youtube" data-platform="youtube">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 7.657 0 12 0 12s0 4.343.502 5.814a3.016 3.016 0 0 0 2.122 2.136C4.495 20.456 12 20.456 12 20.456s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 16.343 24 12 24 12s0-4.343-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
                 YouTube
               </a>
-              <a href="#" class="platform-badge apple_music" data-platform="apple_music">
+              <a href="https://music.apple.com/us/song/bohemian-rhapsody/1440806723" target="_blank" rel="noopener" class="platform-badge apple_music" data-platform="apple_music">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.724 4.004c-.306-.503-.834-.66-1.36-.36l-3.4 2.034a.77.77 0 0 0-.28.906l4.168 8.332c.203.41.728.553 1.14.307a1.62 1.62 0 0 0 .62-1.85l-3.44-6.883c-.14-.286-.477-.38-.76-.202z"/></svg>
                 Apple Music
               </a>
-              <a href="#" class="platform-badge deezer" data-platform="deezer">
+              <a href="https://www.deezer.com/track/3135556" target="_blank" rel="noopener" class="platform-badge deezer" data-platform="deezer">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.134 11.265v-3.884h3.63v3.884h-3.63z"/></svg>
                 Deezer
               </a>
             </div>
           </article>
 
-          <article class="song-card">
+          <article class="song-card" data-song-id="3" data-timestamp="2026-10-20T11:45:00Z">
             <div class="song-header">
               <div class="song-title-row">
                 <span class="song-title">Midnight City</span>
-                <time class="song-time">2026-10-20 11:45</time>
+                <div class="song-meta-right">
+                  <time class="song-time">2026-10-20 11:45</time>
+                  <button type="button" class="vote-btn" data-song-id="3" data-votes="11" data-voted="false" aria-pressed="false" aria-label="Upvote song (11 votes)" onclick="toggleDemoVote(this)">
+                    <svg class="vote-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>
+                    <span class="vote-count">11</span>
+                  </button>
+                </div>
               </div>
               <span class="song-artist">M83</span>
             </div>
             <div class="song-platforms">
-              <a href="#" class="platform-badge spotify" data-platform="spotify">
+              <a href="https://open.spotify.com/track/1eyzqe2QqGZUmfcPZtrIyt" target="_blank" rel="noopener" class="platform-badge spotify" data-platform="spotify">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0z"/></svg>
                 Spotify
               </a>
-              <a href="#" class="platform-badge sound_cloud" data-platform="sound_cloud">
+              <a href="https://soundcloud.com/m83/midnight-city" target="_blank" rel="noopener" class="platform-badge soundcloud" data-platform="soundcloud">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.014 4.024c-4.54 0-7.51 3.656-7.51 7.988 0 2.24.967 4.184 2.492 5.604z"/></svg>
                 SoundCloud
               </a>
             </div>
           </article>
 
-          <article class="song-card">
+          <article class="song-card" data-song-id="4" data-timestamp="2026-10-20T09:22:00Z">
             <div class="song-header">
               <div class="song-title-row">
                 <span class="song-title">Teardrop</span>
-                <time class="song-time">2026-10-20 09:22</time>
+                <div class="song-meta-right">
+                  <time class="song-time">2026-10-20 09:22</time>
+                  <button type="button" class="vote-btn" data-song-id="4" data-votes="8" data-voted="false" aria-pressed="false" aria-label="Upvote song (8 votes)" onclick="toggleDemoVote(this)">
+                    <svg class="vote-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>
+                    <span class="vote-count">8</span>
+                  </button>
+                </div>
               </div>
               <span class="song-artist">Massive Attack</span>
             </div>
             <div class="song-platforms">
-              <a href="#" class="platform-badge youtube_music" data-platform="youtube_music">
+              <a href="https://music.youtube.com/watch?v=u7K72X4eo_s" target="_blank" rel="noopener" class="platform-badge youtube_music" data-platform="youtube_music">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136z"/></svg>
                 YT Music
               </a>
-              <a href="#" class="platform-badge tidal" data-platform="tidal">
+              <a href="https://tidal.com/browse/track/584514" target="_blank" rel="noopener" class="platform-badge tidal" data-platform="tidal">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>
                 Tidal
               </a>
             </div>
           </article>
 
-          <article class="song-card">
+          <article class="song-card" data-song-id="5" data-timestamp="2026-10-19T22:07:00Z">
             <div class="song-header">
               <div class="song-title-row">
                 <span class="song-title">Karma Police</span>
-                <time class="song-time">2026-10-19 22:07</time>
+                <div class="song-meta-right">
+                  <time class="song-time">2026-10-19 22:07</time>
+                  <button type="button" class="vote-btn" data-song-id="5" data-votes="16" data-voted="false" aria-pressed="false" aria-label="Upvote song (16 votes)" onclick="toggleDemoVote(this)">
+                    <svg class="vote-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>
+                    <span class="vote-count">16</span>
+                  </button>
+                </div>
               </div>
               <span class="song-artist">Radiohead</span>
             </div>
             <div class="song-platforms">
-              <a href="#" class="platform-badge youtube" data-platform="youtube">
+              <a href="https://www.youtube.com/watch?v=1uYWYWPc9HU" target="_blank" rel="noopener" class="platform-badge youtube" data-platform="youtube">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136z"/></svg>
                 YouTube
               </a>
-              <a href="#" class="platform-badge bandcamp" data-platform="bandcamp">
+              <a href="https://radiohead.bandcamp.com/track/karma-police" target="_blank" rel="noopener" class="platform-badge bandcamp" data-platform="bandcamp">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v16l8-8z"/></svg>
                 Bandcamp
               </a>
             </div>
           </article>
 
-          <article class="song-card">
+          <article class="song-card" data-song-id="6" data-timestamp="2026-10-19T18:14:00Z">
             <div class="song-header">
               <div class="song-title-row">
                 <span class="song-title">Nightcall</span>
-                <time class="song-time">2026-10-19 18:14</time>
+                <div class="song-meta-right">
+                  <time class="song-time">2026-10-19 18:14</time>
+                  <button type="button" class="vote-btn" data-song-id="6" data-votes="12" data-voted="false" aria-pressed="false" aria-label="Upvote song (12 votes)" onclick="toggleDemoVote(this)">
+                    <svg class="vote-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>
+                    <span class="vote-count">12</span>
+                  </button>
+                </div>
               </div>
               <span class="song-artist">Kavinsky</span>
             </div>
             <div class="song-platforms">
-              <a href="#" class="platform-badge spotify" data-platform="spotify">
+              <a href="https://open.spotify.com/track/0U0ldCRmgCqhVvD6ksG63j" target="_blank" rel="noopener" class="platform-badge spotify" data-platform="spotify">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12z"/></svg>
                 Spotify
               </a>
-              <a href="#" class="platform-badge deezer" data-platform="deezer">
+              <a href="https://www.deezer.com/track/6325392" target="_blank" rel="noopener" class="platform-badge deezer" data-platform="deezer">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.134 11.265z"/></svg>
                 Deezer
               </a>
@@ -297,48 +343,154 @@
             <circle cx="6" cy="18" r="3"/>
             <circle cx="18" cy="16" r="3"/>
           </svg>
-          <h3>No songs yet</h3>
-          <p>Send a music link in Discord and the bot will pick it up.</p>
+          <h3>No matching tracks</h3>
+          <p>Drop a song link in Discord or clear the current filter.</p>
         </div>
       </section>
 
       <footer class="footer">
-        <p>Playlist Bot v0.1.0 — Built with FastAPI, HTMX & Discord.py</p>
+        <p>Playlist Bot v0.1.0 — FastAPI, HTMX & Discord.py</p>
         <p><a href="https://github.com/ilgmars/playlist-bot" target="_blank" rel="noopener">View on GitHub</a></p>
       </footer>
     </main>
   </div>
 
-  <!-- Exposed hairline grid overlay -->
-  <div class="grid-overlay" aria-hidden="true"></div>
+  <div class="auth-toast" id="auth-toast" role="status" aria-live="polite" hidden>
+    <span>Sign in with Discord to vote for tracks.</span>
+    <button type="button" class="auth-toast-action" onclick="demoLogin()">Log in</button>
+  </div>
 
-  <!-- Inline scripts for interactivity -->
   <script>
-    // ===== Theme handling =====
+    let currentSort = 'newest';
+    let toastTimer = null;
+
     function toggleTheme() {
       const html = document.documentElement;
       const current = html.getAttribute('data-theme');
       const next = current === 'dark' ? 'light' : 'dark';
       html.setAttribute('data-theme', next);
       localStorage.setItem('theme', next);
-      updateStatusDot();
     }
 
-    function updateStatusDot() {
-      const dot = document.getElementById('status-dot');
-      const text = document.getElementById('status-text');
-      if (dot && text) {
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        text.textContent = isDark ? 'Dark' : 'Live';
+    function isDemoLoggedIn() {
+      return localStorage.getItem('demo_discord_user') !== null;
+    }
+
+    function syncDemoAuthUI() {
+      const loginBtn = document.getElementById('discord-login-btn');
+      const pill = document.getElementById('user-pill');
+      const loggedIn = isDemoLoggedIn();
+      if (loginBtn) loginBtn.hidden = loggedIn;
+      if (pill) pill.hidden = !loggedIn;
+
+      const votedIds = JSON.parse(localStorage.getItem('demo_votes') || '[]');
+      document.querySelectorAll('#songs-grid .vote-btn').forEach(btn => {
+        const songId = btn.dataset.songId;
+        const baseVotes = Number(btn.dataset.baseVotes || btn.dataset.votes || 0);
+        btn.dataset.baseVotes = String(baseVotes);
+        const voted = loggedIn && votedIds.includes(songId);
+        const total = baseVotes + (voted ? 1 : 0);
+        btn.dataset.voted = voted ? 'true' : 'false';
+        btn.dataset.votes = String(total);
+        btn.classList.toggle('voted', voted);
+        btn.setAttribute('aria-pressed', voted ? 'true' : 'false');
+        const countEl = btn.querySelector('.vote-count');
+        if (countEl) countEl.textContent = String(total);
+      });
+      updateStats();
+    }
+
+    function demoLogin() {
+      localStorage.setItem('demo_discord_user', JSON.stringify({ username: 'ilgmars' }));
+      const toast = document.getElementById('auth-toast');
+      if (toast) {
+        toast.removeAttribute('data-visible');
+        toast.hidden = true;
+      }
+      syncDemoAuthUI();
+    }
+
+    function demoLogout() {
+      localStorage.removeItem('demo_discord_user');
+      syncDemoAuthUI();
+    }
+
+    function showAuthToast() {
+      const toast = document.getElementById('auth-toast');
+      if (!toast) return;
+      toast.hidden = false;
+      toast.setAttribute('data-visible', 'true');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.removeAttribute('data-visible');
+        setTimeout(() => { toast.hidden = true; }, 200);
+      }, 3600);
+    }
+
+    function toggleDemoVote(btn) {
+      if (!isDemoLoggedIn()) {
+        showAuthToast();
+        return;
+      }
+      const songId = btn.dataset.songId;
+      const votedIds = new Set(JSON.parse(localStorage.getItem('demo_votes') || '[]'));
+      if (votedIds.has(songId)) {
+        votedIds.delete(songId);
+      } else {
+        votedIds.add(songId);
+      }
+      localStorage.setItem('demo_votes', JSON.stringify(Array.from(votedIds)));
+      syncDemoAuthUI();
+      if (currentSort === 'votes') {
+        sortCards();
       }
     }
 
-    // ===== Stats & UI state =====
+    function setSort(sortMode) {
+      currentSort = sortMode;
+      document.querySelectorAll('.sort-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.sort === sortMode);
+      });
+      sortCards();
+    }
+
+    function sortCards() {
+      const grid = document.getElementById('songs-grid');
+      const cards = Array.from(grid.querySelectorAll('.song-card'));
+      cards.sort((a, b) => {
+        if (currentSort === 'votes') {
+          const votesA = Number(a.querySelector('.vote-btn')?.dataset.votes || 0);
+          const votesB = Number(b.querySelector('.vote-btn')?.dataset.votes || 0);
+          if (votesB !== votesA) return votesB - votesA;
+        }
+        return (b.dataset.timestamp || '').localeCompare(a.dataset.timestamp || '');
+      });
+      cards.forEach(c => grid.appendChild(c));
+    }
+
+    function exportDemoM3u() {
+      const cards = document.querySelectorAll('#songs-grid .song-card:not([style*="display: none"])');
+      const lines = ['#EXTM3U', '#PLAYLIST:Discord Playlist'];
+      cards.forEach(card => {
+        const title = card.querySelector('.song-title')?.textContent.trim() || 'Unknown';
+        const artist = card.querySelector('.song-artist')?.textContent.trim() || 'Unknown';
+        const link = card.querySelector('.platform-badge')?.getAttribute('href') || '';
+        lines.push(`#EXTINF:-1,${artist} - ${title}`);
+        lines.push(link);
+      });
+      const blob = new Blob([lines.join('\n') + '\n'], { type: 'audio/x-mpegurl' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'playlist.m3u';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
     function updateStats() {
       const visibleCards = document.querySelectorAll('#songs-grid .song-card:not([style*="display: none"])');
       const allCards = document.querySelectorAll('#songs-grid .song-card');
 
-      // Songs count
       const songsEl = document.getElementById('stat-songs');
       const countEl = document.getElementById('song-count');
       if (songsEl) songsEl.textContent = visibleCards.length;
@@ -346,27 +498,31 @@
         countEl.textContent = `${visibleCards.length} song${visibleCards.length !== 1 ? 's' : ''}${visibleCards.length !== allCards.length ? ` (of ${allCards.length})` : ''}`;
       }
 
-      // Platforms count
       const platformSet = new Set();
       let linkCount = 0;
+      let voteCount = 0;
       visibleCards.forEach(card => {
         card.querySelectorAll('.platform-badge').forEach(badge => {
           platformSet.add(badge.dataset.platform);
           linkCount++;
         });
+        const voteBtn = card.querySelector('.vote-btn');
+        if (voteBtn) {
+          voteCount += Number(voteBtn.dataset.votes || 0);
+        }
       });
       const platformsEl = document.getElementById('stat-platforms');
-      const linksEl = document.getElementById('stat-links');
+      const votesEl = document.getElementById('stat-votes');
+      const linksDeltaEl = document.getElementById('stat-links-delta');
       if (platformsEl) platformsEl.textContent = platformSet.size;
-      if (linksEl) linksEl.textContent = linkCount;
+      if (votesEl) votesEl.textContent = voteCount;
+      if (linksDeltaEl) linksDeltaEl.textContent = `${linkCount} link${linkCount === 1 ? '' : 's'} matched`;
 
-      // Nav counts
       const navSongs = document.getElementById('nav-count-songs');
       const navPlaylists = document.getElementById('nav-count-playlists');
       if (navSongs) navSongs.textContent = allCards.length;
       if (navPlaylists) navPlaylists.textContent = platformSet.size;
 
-      // Last update
       const times = Array.from(visibleCards).map(card => {
         const timeEl = card.querySelector('.song-time');
         return timeEl ? new Date(timeEl.textContent) : null;
@@ -389,20 +545,15 @@
       const container = document.getElementById('platform-filter');
       container.innerHTML = '';
 
-      // Platform icons
       const icons = {
         youtube: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 7.657 0 12 0 12s0 4.343.502 5.814a3.016 3.016 0 0 0 2.122 2.136C4.495 20.456 12 20.456 12 20.456s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 16.343 24 12 24 12s0-4.343-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>',
         youtube_music: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 7.657 0 12 0 12s0 4.343.502 5.814a3.016 3.016 0 0 0 2.122 2.136C4.495 20.456 12 20.456 12 20.456s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 16.343 24 12 24 12s0-4.343-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>',
-        spotify: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.521 17.34c-.63.405-1.416.628-2.172.654-.56.018-1.146-.086-1.587-.386-.206-.138-.707-.39-1.029-.57-.705-.39-1.446-.874-1.983-1.416-.65-.655-1.164-1.505-1.5-2.605-.29-1.027-.443-2.09-.443-3.143 0-1.28.146-2.402.45-3.356.526-1.16 1.26-2.072 2.21-2.75.292-.207.6-.385.92-.53.63-.29 1.418-.443 2.165-.443 1.047 0 1.97.16 2.73.472.76.312 1.447.82 1.98 1.54.247.333.427.756.527 1.27.18.98.27 2.05.27 3.187 0 1.197-.098 2.31-.288 3.34-.37 2.017-1.248 3.474-2.53 4.42zm-6.447-5.982c-.55.43-1.022.728-1.35.952a2.284 2.284 0 0 1-1.252.205 2.833 2.833 0 0 1-1.24-.202 2.456 2.456 0 0 1-1.357-.927c-.68-.56-1.25-1.322-1.707-2.262-.14-.29-.222-.61-.222-.956 0-.787.133-1.47.383-2.06.28-.554.75-1.004 1.42-1.333.497-.243 1.032-.37 1.607-.37.707 0 1.307.182 1.68.53.38.34.662.82.84 1.42.18.61.27 1.32.27 2.14 0 .82-.09 1.53-.27 2.14z"/></svg>',
-        apple_music: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.724 4.004c-.306-.503-.834-.66-1.36-.36l-3.4 2.034a.77.77 0 0 0-.28.906l4.168 8.332c.203.41.728.553 1.14.307a1.62 1.62 0 0 0 .62-1.85l-3.44-6.883c-.14-.286-.477-.38-.76-.202zm-14.44 0C3.98 4.004 3.46 4.17 3.15 4.47l-4.17 8.332a.807.807 0 0 0 .28.906l3.4 2.033c.52.306 1.048.14 1.36-.36a1.62 1.62 0 0 0-.62-1.85l3.44-6.882c.14-.286.477-.38.76-.2zm11.953 10.026l3.44 6.883c.134.278-.194.615-.476.76a1.62 1.62 0 0 1-1.14.306l-4.168 8.332c-.47.278-1.12.13-1.52-.304a.77.77 0 0 1-.28-.906l4.17-8.333c.204-.41.72-.55 1.14-.306zm-11.953 0l-3.44-6.883c-.13-.27-.47-.38-.76-.2a1.62 1.62 0 0 1 1.14-.306l4.168-8.332c.467-.277 1.12-.13 1.52.304a.77.77 0 0 1 .28.906l-4.17 8.333c-.203.41-.73.55-1.14.306z"/></svg>',
-        sound_cloud: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.014 4.024c-4.54 0-7.51 3.656-7.51 7.988 0 2.24.967 4.184 2.492 5.604-1.695 1.887-3.875 4.484-3.875 6.905 0 2.7 2.12 4.82 5.66 4.82s5.66-2.12 5.66-4.82c0-2.136-1.882-4.43-3.718-6.495 1.375-1.42 2.365-3.18 2.365-5.118 0-2.678-2.12-4.85-5.67-4.85M18.28 12.36c-2.79 0-5.078 2.33-5.078 5.2 0 2.86 2.28 5.19 5.078 5.19s5.08-2.33 5.08-5.2c0-2.87-2.29-5.2-5.08-5.2z"/></svg>',
+        spotify: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0z"/></svg>',
+        apple_music: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.724 4.004c-.306-.503-.834-.66-1.36-.36l-3.4 2.034a.77.77 0 0 0-.28.906l4.168 8.332c.203.41.728.553 1.14.307a1.62 1.62 0 0 0 .62-1.85l-3.44-6.883c-.14-.286-.477-.38-.76-.202z"/></svg>',
+        soundcloud: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.014 4.024c-4.54 0-7.51 3.656-7.51 7.988 0 2.24.967 4.184 2.492 5.604z"/></svg>',
         bandcamp: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v16l8-8z"/></svg>',
-        deezer: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.134 11.265v-3.884h3.63v3.884h-3.63zm1.174 5.035v-3.788h3.57v3.788h-3.57zm4.04-10.07h-1.722c-.69 0-1.303.57-1.303 1.276 0 .72.63 1.29 1.28 1.29.633 0 1.155-.54 1.155-1.303v-1.26h2.045v6.782h-1.682v-3.685h-.137c-.043.59-.52 1.038-1.22 1.038-.78 0-1.297-.54-1.297-1.22v-1.156h-1.44v6.782h-1.69v-6.782h-1.15v-1.156h1.15v-2.21h3.51v2.21h1.15v1.156h-1.15v1.15c0 .667.57 1.22 1.297 1.22.643 0 1.145-.51 1.212-1.038h.157v3.685h1.682v-6.782h2.045v1.26c0 .707.54 1.29 1.193 1.29.61 0 1.23-.57 1.29-1.3 0-.733-.53-1.29-1.28-1.29h-1.72zm-6.575 11.94c-.675 0-1.28-.54-1.28-1.22v-1.156h-1.44v6.782h-1.69v-6.782h-1.15v-1.156h1.15v-2.21h3.51v2.21h1.15v1.156h-1.15v1.15c0 .667.57 1.22 1.297 1.22.643 0 1.145-.51 1.212-1.038h.157v3.685h1.682v-6.782h2.045v1.26c0 .707.54 1.29 1.193 1.29.61 0 1.23-.57 1.29-1.3 0-.733-.53-1.29-1.28-1.29h-1.72zm-6.575 11.94c-.675 0-1.28-.54-1.28-1.22v-1.156h-1.44v6.782h-1.69v-6.782h-1.15v-1.156h1.15v-2.21h3.51v2.21h1.15v1.156h-1.15v1.15c0 .667.57 1.22 1.297 1.22.643 0 1.145-.51 1.212-1.038h.157v3.685h1.682v-6.782h2.045v1.26c0 .707.54 1.29 1.193 1.29.61 0 1.23-.57 1.29-1.3 0-.733-.53-1.29-1.28-1.29h-1.72zm-6.575 11.94c-.675 0-1.28-.54-1.28-1.22v-1.156h-1.44v6.782h-1.69v-6.782h-1.15v-1.156h1.15v-2.21h3.51v2.21h1.15v1.156h-1.15v1.15c0 .667.57 1.22 1.297 1.22.643 0 1.145-.51 1.212-1.038h.157v3.685h1.682v-6.782h2.045v1.26c0 .707.54 1.29 1.193 1.29.61 0 1.23-.57 1.29-1.3 0-.733-.53-1.29-1.28-1.29h-1.72zm-6.575 11.94c-.675 0-1.28-.54-1.28-1.22v-1.156h-1.44v6.782h-1.69v-6.782h-1.15v-1.156h1.15v-2.21h3.51v2.21h1.15v1.156h-1.15v1.15c0 .667.57 1.22 1.297 1.22.643 0 1.145-.51 1.212-1.038h.157v3.685h1.682v-6.782h2.045v1.26c0 .707.54 1.29 1.193 1.29.61 0 1.23-.57 1.29-1.3 0-.733-.53-1.29-1.28-1.29h-1.72z"/></svg>',
-        tidal: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 24c6.627 0 12-5.373 12-12S18.627 0 12 0 0 5.373 0 12s5.373 12 12 12zm-1.25-13.5c0 1.542-1.25 2.8-2.75 2.8s-2.75-1.258-2.75-2.8 1.25-2.8 2.75-2.8 2.75 1.258 2.75 2.8zM12 3c4.963 0 9 4.037 9 9s-4.037 9-9 9-9-4.037-9-9 4.037-9 9-9zm0 1.5c-4.136 0 7.5 3.364 7.5 7.5s-3.364 7.5-7.5 7.5S4.5 15.136 4.5 11S7.864 3 12 3z"/></svg>',
-        amazon_music: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.22 4.86c.6-.33.9-.97.78-1.57-.12-.6-.62-1.08-1.2-.93l-9 2.5c-.47.13-.84.5-.98 1-.14.49-.06 1.06.28 1.4l12.2 9.2c.53.4.47 1.22-.1 1.6l-2.5 2.8c-.5.5-1.28.5-1.78 0l-1.8-2c-.6-.6-1.58-.42-2.05.22l-9.5 9.5c-.5.5-1.2.8-1.86.55-.66-.26-1.1-.92-1.1-1.58V4.4c0-.5.4-1 .9-1h15.8c.5 0 1.03.22 1.42.66z"/></svg>',
-        qobuz: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.6 3.2H2.4C1.4 3.2.6 4 .6 5v14c0 1.2.8 2 1.8 2h19.2c1 0 1.8-.8 1.8-2V5c0-1-.8-1.8-1.8-1.8zm-1 16.5H3.4V5.5h17.2v14.2zm-2-5.6c0 .7-.5 1.2-1.2 1.2H4.6c-.7 0-1.2-.5-1.2-1.2V11c0-.7.5-1.2 1.2-1.2h13.2c.7 0 1.2.5 1.2 1.2v3.1z"/></svg>',
-        napster: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-15.5c-3.03 0-5.5 2.47-5.5 5.5s2.47 5.5 5.5 5.5 5.5-2.47 5.5-5.5-2.47-5.5-5.5-5.5z"/></svg>',
-        pandora: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm6.92 17.47c-.7.7-1.67.95-2.72.7-.52-.1-1.04-.1-1.57-.1-.97 0-1.77.1-2.4.4l-.07-.03c-1.1-.54-2.24-.68-3.35-.68-2.57 0-4.4 2.27-4.4 4.94 0 1.13.38 2.09.83 2.67.32.38.7.64 1.13.83.96.4 2.04.63 3.14.68.54 0 .96-.08 1.23-.22.15-.08.26-.19.36-.32l.07-.08c.34-.34.47-.83.38-1.39-.17-1.07-.23-2.1-.1-2.87.28-1.63.77-2.9 1.7-3.95 1.54-1.7 3.56-2.6 5.58-2.6 1.8 0 3.12.7 3.98 1.46.67.58 1.17 1.22 1.34 1.87.18.65.1 1.43-.1 2.18zm-8.92-5.37c-.43-1.1-.5-2.57-.1-3.92.4-1.3 1.23-2.25 2.57-2.84 1.43-.6 3.3-.6 5.03-.2 1.15.3 2.22.9 3.15 2 .74.88 1.14 1.9.97 2.97-.2 1.13-.75 1.95-1.68 2.4-1.54.75-3.7.67-5.14-.07-1.06-.57-1.85-1.43-2.15-2.4-.27-.9-.23-1.9.04-2.6.27-.62.72-1.1 1.27-1.4.3-.17.58-.22.84-.22.43 0 .8.1 1.1.23.58.26.82.78.7 1.36-.3.6-1.1.9-1.93.9-1.8 0-3.1-1.8-3.2-3.3-.03-1.45.8-2.5 2-3.07zm7.73 14.94c-.85 1.04-1.87 1.45-2.72 1.45-1.2 0-2.12-.72-2.32-1.8-.08-.42-.06-.83.07-1.27.12-.44.35-.85.65-1.23.4-.47.92-.85 1.53-.94.55-.08 1.04.04 1.37.3.26.2.4.5.44.88-.03.3-.17.6-.45.8-.57.3-1.2.5-1.9.5zm-1.8-3.92c-.72-.05-1.37-.48-1.77-1.2-.33-.6-.4-1.4-.25-2.3.18-1.04.7-1.97 1.75-2.5.55-.27 1.13-.3 1.68-.2.62.1 1.2.4 1.7 1.07.5.67.7 1.57.55 2.47-.05.3-.2.57-.57.65-.68.15-1.4.05-1.98-.08z"/></svg>',
+        deezer: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.134 11.265v-3.884h3.63v3.884h-3.63z"/></svg>',
+        tidal: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 24c6.627 0 12-5.373 12-12S18.627 0 12 0 0 5.373 0 12s5.373 12 12 12z"/></svg>',
       };
 
       platformSet.forEach(platform => {
@@ -432,8 +583,8 @@
       }
     }
 
-    function filterPlatform(btn, platform) {
-      const isActive = btn.classList.toggle('active');
+    function filterPlatform(btn) {
+      btn.classList.toggle('active');
       const cards = document.querySelectorAll('#songs-grid .song-card');
 
       const activeFilters = Array.from(document.querySelectorAll('.filter-chip.active'))
@@ -444,14 +595,13 @@
           card.style.display = 'flex';
           return;
         }
-
         const cardPlatforms = Array.from(card.querySelectorAll('.platform-badge'))
           .map(b => b.dataset.platform);
-
         const hasMatch = cardPlatforms.some(p => activeFilters.includes(p));
         card.style.display = hasMatch ? 'flex' : 'none';
       });
 
+      updateStats();
       updateEmptyState();
     }
 
@@ -464,23 +614,20 @@
           card.style.display = 'flex';
           return;
         }
-
         const title = card.querySelector('.song-title')?.textContent.toLowerCase() || '';
         const artist = card.querySelector('.song-artist')?.textContent.toLowerCase() || '';
         const platforms = Array.from(card.querySelectorAll('.platform-badge'))
           .map(b => b.dataset.platform).join(' ');
-
         const haystack = title + ' ' + artist + ' ' + platforms;
         card.style.display = haystack.includes(query) ? 'flex' : 'none';
       });
 
+      updateStats();
       updateEmptyState();
     }
 
-    // Initialize on DOM ready
     document.addEventListener('DOMContentLoaded', () => {
-      updateStatusDot();
-      updateStats();
+      syncDemoAuthUI();
       updatePlatformFilters();
       updateEmptyState();
     });

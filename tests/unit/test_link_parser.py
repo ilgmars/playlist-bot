@@ -39,6 +39,13 @@ class TestYouTubeMusicLinks:
         assert link.platform == Platform.YOUTUBE_MUSIC
         assert link.track_id == "dQw4w9WgXcQ"
 
+    def test_youtube_radio_list_url_extracts_video_id(self):
+        link = parse_link("https://www.youtube.com/watch?list=RDdQw4w9WgXcQ&v=dQw4w9WgXcQ")
+        assert link is not None
+        assert link.platform == Platform.YOUTUBE_MUSIC
+        assert link.track_id == "dQw4w9WgXcQ"
+        assert link.canonical_url == "https://music.youtube.com/watch?v=dQw4w9WgXcQ"
+
 
 class TestSpotifyLinks:
     def test_spotify_track(self):
@@ -72,11 +79,13 @@ class TestAppleMusicLinks:
         link = parse_link("https://music.apple.com/us/album/evermore/1534087830?i=1534087881")
         assert link is not None
         assert link.platform == Platform.APPLE_MUSIC
+        assert link.track_id == "1534087881"
 
     def test_apple_music_song_short(self):
         link = parse_link("https://music.apple.com/us/song/evermore/1534087881")
         assert link is not None
         assert link.platform == Platform.APPLE_MUSIC
+        assert link.track_id == "1534087881"
 
 
 class TestSoundCloudLinks:

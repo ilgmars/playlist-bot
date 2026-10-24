@@ -17,7 +17,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml README.md ./
 COPY src ./src
 RUN pip install --no-cache-dir hatchling hatch-vcs 2>/dev/null; \
-    pip install --no-cache-dir -e ".[dev]"
+    pip install --no-cache-dir .
+
+FROM deps AS test
+RUN pip install --no-cache-dir ".[dev]" "bandit[toml]"
+COPY tests ./tests
 
 FROM base AS runtime
 COPY --from=deps /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages

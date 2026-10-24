@@ -297,3 +297,103 @@ class TestDispatch:
         url = "https://music.apple.com/us/song/x/1"
         link = _link(Platform.APPLE_MUSIC, url)
         assert mgr.add_to_playlist(Platform.APPLE_MUSIC, "chan", "pl", link) is False
+
+    def test_mismatched_platform_returns_false(self, monkeypatch):
+        mgr = pl.PlaylistManager()
+        yt_add = MagicMock()
+        sp_add = MagicMock()
+        monkeypatch.setattr(mgr, "add_to_youtube_playlist", yt_add)
+        monkeypatch.setattr(mgr, "add_to_spotify_playlist", sp_add)
+
+        sp_link = _link(Platform.SPOTIFY, f"https://open.spotify.com/track/{TRACK_ID}", TRACK_ID)
+        yt_link = _link(Platform.YOUTUBE, "https://youtu.be/dQw4w9WgXcQ", "dQw4w9WgXcQ")
+
+        assert mgr.add_to_playlist(Platform.YOUTUBE, "chan", "PL1", sp_link) is False
+        assert mgr.add_to_playlist(Platform.SPOTIFY, "chan", "pl", yt_link) is False
+        yt_add.assert_not_called()
+        sp_add.assert_not_called()
+
+
+class TestM3uExport:
+    def test_generate_m3u_and_export_file(self, tmp_path):
+        songs = [
+            {
+                "title": "Evermore",
+                "artist": "Taylor Swift",
+                "duration": 244000,
+                "links": [
+                    {
+                        "platform": "youtube",
+                        "original_url": "https://www.youtube.com/watch?v=abc12345678",
+                    },
+                    {
+                        "platform": "apple_music",
+                        "original_url": "https://music.apple.com/us/song/evermore/1534087881",
+                    },
+                ],
+            },
+            {
+                "title": "Short Track",
+                "artist": "Artist B",
+                "duration": 120,
+                "links": [
+                    {
+                        "platform": "apple_music",
+                        "original_url": "https://music.apple.com/us/song/short/2",
+                    }
+                ],
+            },
+            {"title": "No Links", "artist": "Skip Me", "links": []},
+        ]
+        mgr = pl.PlaylistManager()
+        out_file = tmp_path / "export" / "apple.m3u"
+        m3u = mgr.export_m3u(
+            songs,
+            output_path=str(out_file),
+            title="Apple Export",
+            preferred_platform="apple_music",
+        )
+        assert m3u.startswith("#EXTM3U\n#PLAYLIST:Apple Export\n")
+        assert "#EXTINF:244,Taylor Swift - Evermore" in m3u
+        assert "https://music.apple.com/us/song/evermore/1534087881" in m3u
+        assert "#EXTINF:120,Artist B - Short Track" in m3u
+        assert "Skip Me" not in m3u
+        assert out_file.read_text(encoding="utf-8") == m3u
+
+
+class TestBackoffHelper:
+    def test_retries_on_429_and_respects_retry_after(self, monkeypatch):
+        sleep_mock = MagicMock()
+        monkeypatch.setattr(pl.time, "sleep", sleep_mock)
+
+        class RateLimitError(Exception):
+            http_status = 429
+            headers = {"Retry-After": "1.5"}
+
+        calls = {"n": 0}
+
+        def flaky():
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RateLimitError("429 Too Many Requests")
+            return "ok"
+
+        assert pl._call_with_backoff(flaky, max_retries=3, base_delay=0.5) == "ok"
+        assert calls["n"] == 2
+        sleep_mock.assert_called_once_with(1.5)
+
+    def test_retries_with_exponential_backoff_when_no_header(self, monkeypatch):
+        sleep_mock = MagicMock()
+        monkeypatch.setattr(pl.time, "sleep", sleep_mock)
+
+        calls = {"n": 0}
+
+        def flaky():
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise RuntimeError("HTTP 429 rate limit")
+            return "done"
+
+        assert pl._call_with_backoff(flaky, max_retries=3, base_delay=0.25) == "done"
+        assert calls["n"] == 3
+        assert sleep_mock.call_count == 2

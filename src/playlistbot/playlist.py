@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import logging
 import os
+import time
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
-import httpx
+from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from spotipy import Spotify
@@ -25,6 +28,82 @@ _YT_SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
 
 # Spotify scopes
 _SPOTIFY_SCOPES = ["playlist-modify-public", "playlist-modify-private"]
+
+
+def _is_rate_limit_error(exc: Exception) -> tuple[bool, float | None]:
+    """Detect HTTP 429 rate-limit exceptions and extract Retry-After if present."""
+    resp = getattr(exc, "resp", None)
+    status = getattr(exc, "http_status", None) or getattr(resp, "status", None)
+    if status != 429 and "429" not in str(exc):
+        return False, None
+    headers = getattr(exc, "headers", None) or resp or {}
+    retry_after = (
+        headers.get("Retry-After") or headers.get("retry-after")
+        if hasattr(headers, "get")
+        else None
+    )
+    if retry_after is not None:
+        try:
+            return True, max(0.0, float(retry_after))
+        except (TypeError, ValueError):
+            pass
+    return True, None
+
+
+def _call_with_backoff[T](
+    fn: Callable[[], T],
+    max_retries: int = 3,
+    base_delay: float = 0.5,
+) -> T:
+    """Execute an API call with exponential backoff on rate limits (429)."""
+    for attempt in range(max_retries):
+        try:
+            return fn()
+        except Exception as exc:
+            is_rl, retry_after = _is_rate_limit_error(exc)
+            if not is_rl or attempt >= max_retries - 1:
+                raise
+            delay = retry_after if retry_after is not None else base_delay * (2**attempt)
+            log.warning("API rate limited, retrying in %.2fs (attempt %d)", delay, attempt + 1)
+            time.sleep(delay)
+    return fn()  # pragma: no cover
+
+
+def _clean_m3u_line(val: str) -> str:
+    return val.replace("\r", " ").replace("\n", " ").strip()
+
+
+def generate_m3u(
+    songs: list[dict[str, Any]],
+    title: str = "Shared Playlist",
+    preferred_platform: str | None = None,
+) -> str:
+    """Generate an Extended M3U (.m3u) playlist string from collected songs."""
+    lines = ["#EXTM3U", f"#PLAYLIST:{_clean_m3u_line(title)}"]
+    for song in songs:
+        links = song.get("links") or []
+        if not links:
+            continue
+        chosen_url = links[0].get("original_url", "")
+        if preferred_platform:
+            for link in links:
+                if link.get("platform") == preferred_platform and link.get("original_url"):
+                    chosen_url = link["original_url"]
+                    break
+        if not chosen_url:
+            continue
+        raw_dur = song.get("duration")
+        if isinstance(raw_dur, int) and raw_dur > 1000:
+            dur_sec = int(raw_dur // 1000)
+        elif isinstance(raw_dur, int):
+            dur_sec = raw_dur
+        else:
+            dur_sec = -1
+        artist = _clean_m3u_line(str(song.get("artist") or "Unknown"))
+        song_title = _clean_m3u_line(str(song.get("title") or "Unknown"))
+        lines.append(f"#EXTINF:{dur_sec},{artist} - {song_title}")
+        lines.append(_clean_m3u_line(str(chosen_url)))
+    return "\n".join(lines) + "\n"
 
 
 class PlaylistManager:
@@ -68,7 +147,7 @@ class PlaylistManager:
                 and self._youtube_creds.expired
                 and self._youtube_creds.refresh_token
             ):
-                self._youtube_creds.refresh(httpx.Client())
+                self._youtube_creds.refresh(GoogleAuthRequest())
             else:
                 # First run — would need OAuth flow
                 self._youtube_creds = None
@@ -91,9 +170,6 @@ class PlaylistManager:
         if not client:
             return None
 
-        # Check if we already stored a playlist ID for this channel
-        # (in a real app, look it up in the DB)
-
         request = client.playlists().insert(
             part="snippet,status",
             body={
@@ -104,7 +180,7 @@ class PlaylistManager:
                 "status": {"privacyStatus": "private"},
             },
         )
-        response = request.execute()
+        response = _call_with_backoff(request.execute)
         playlist_id = response.get("id")
         log.info("Created YouTube playlist %s for channel %s", playlist_id, channel_id)
         return playlist_id
@@ -134,7 +210,7 @@ class PlaylistManager:
                     }
                 },
             )
-            request.execute()
+            _call_with_backoff(request.execute)
             log.info("Added YouTube video %s to playlist %s at position 0", video_id, playlist_id)
             return True
         except Exception as e:
@@ -204,10 +280,12 @@ class PlaylistManager:
 
         try:
             # To prepend, insert at position 0
-            client.playlist_add_items(
-                playlist_id,
-                [f"spotify:track:{track_id}"],
-                position=0,
+            _call_with_backoff(
+                lambda: client.playlist_add_items(
+                    playlist_id,
+                    [f"spotify:track:{track_id}"],
+                    position=0,
+                )
             )
             log.info("Added Spotify track %s to playlist %s", track_id, playlist_id)
             return True
@@ -223,14 +301,35 @@ class PlaylistManager:
         client = self._ensure_spotify()
         if not client:
             return None
-        user_id = client.current_user()["id"]
-        playlist = client.user_playlist_create(
-            user=user_id,
-            name=title,
-            public=False,
-            description="Auto-generated from Discord music links",
+        user_id = _call_with_backoff(client.current_user)["id"]
+        playlist = _call_with_backoff(
+            lambda: client.user_playlist_create(
+                user=user_id,
+                name=title,
+                public=False,
+                description="Auto-generated from Discord music links",
+            )
         )
         return playlist.get("id")
+
+    # ------------------------------------------------------------------
+    # Apple Music / M3U Export
+    # ------------------------------------------------------------------
+
+    def export_m3u(
+        self,
+        songs: list[dict[str, Any]],
+        output_path: str | None = None,
+        title: str = "Shared Playlist",
+        preferred_platform: str | None = None,
+    ) -> str:
+        """Export songs to an Extended M3U (.m3u) format string and optional file."""
+        content = generate_m3u(songs, title=title, preferred_platform=preferred_platform)
+        if output_path:
+            path = Path(output_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        return content
 
     # ------------------------------------------------------------------
     # Generic dispatch
@@ -245,13 +344,14 @@ class PlaylistManager:
     ) -> bool:
         """Add a track to a playlist on the given platform."""
         match platform:
-            case Platform.YOUTUBE:
-                video_id = link.track_id or link.original_url.split("v=")[-1][:11]
-                return self.add_to_youtube_playlist(channel_id, playlist_id, video_id)
-            case Platform.YOUTUBE_MUSIC:
+            case Platform.YOUTUBE | Platform.YOUTUBE_MUSIC:
+                if link.platform not in (Platform.YOUTUBE, Platform.YOUTUBE_MUSIC):
+                    return False
                 video_id = link.track_id or link.original_url.split("v=")[-1][:11]
                 return self.add_to_youtube_playlist(channel_id, playlist_id, video_id)
             case Platform.SPOTIFY:
+                if link.platform != Platform.SPOTIFY:
+                    return False
                 return self.add_to_spotify_playlist(channel_id, playlist_id, link.original_url)
             case _:
                 # Apple Music, SoundCloud, Bandcamp — no write API

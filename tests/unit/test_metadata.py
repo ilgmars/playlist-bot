@@ -1,7 +1,12 @@
 """Tests for metadata extraction — mocked API calls."""
 
-import pytest
+from unittest.mock import AsyncMock
 
+import httpx
+import pytest
+import respx
+
+import playlistbot.metadata as meta
 from playlistbot.link_parser import ParsedLink, Platform
 from playlistbot.metadata import TrackInfo, extract_metadata
 
@@ -51,44 +56,74 @@ class TestTrackInfo:
 
 class TestExtractMetadata:
     @pytest.mark.asyncio
-    async def test_extract_youtube_metadata(self, youtube_link):
+    async def test_extract_youtube_metadata(self, monkeypatch, youtube_link):
+        monkeypatch.setattr(
+            meta,
+            "fetch_youtube_metadata",
+            AsyncMock(
+                return_value=TrackInfo(
+                    title="Never Gonna Give You Up",
+                    artist="Rick Astley",
+                    source_url=youtube_link.original_url,
+                    source_platform=Platform.YOUTUBE,
+                )
+            ),
+        )
         result = await extract_metadata(youtube_link)
-        # Without network this will fail gracefully
-        assert result is None or isinstance(result, TrackInfo)
+        assert isinstance(result, TrackInfo)
+        assert result.title == "Never Gonna Give You Up"
 
     @pytest.mark.asyncio
+    @respx.mock
     async def test_extract_spotify_metadata(self, spotify_link):
+        respx.get("https://open.spotify.com/oembed").mock(
+            return_value=httpx.Response(
+                200, json={"title": "Never Gonna Give You Up - Rick Astley"}
+            )
+        )
         result = await extract_metadata(spotify_link)
-        assert result is None or isinstance(result, TrackInfo)
+        assert isinstance(result, TrackInfo)
+        assert result.title == "Never Gonna Give You Up"
+        assert result.artist == "Rick Astley"
 
     @pytest.mark.asyncio
+    @respx.mock
     async def test_extract_soundcloud_metadata(self, soundcloud_link):
+        respx.get("https://soundcloud.com/oembed").mock(
+            return_value=httpx.Response(200, json={"title": "Major Lazer - Keep It 168"})
+        )
         result = await extract_metadata(soundcloud_link)
-        assert result is None or isinstance(result, TrackInfo)
+        assert isinstance(result, TrackInfo)
+        assert result.title == "Keep It 168"
+        assert result.artist == "Major Lazer"
 
     @pytest.mark.asyncio
-    async def test_extract_unknown_platform(self):
+    async def test_extract_unknown_platform(self, monkeypatch):
+        monkeypatch.setattr(meta, "fetch_youtube_metadata", AsyncMock(return_value=None))
         link = ParsedLink(
             platform=Platform.YOUTUBE,
             original_url="https://example.com",
             canonical_url="https://example.com",
         )
-        # This won't match any known URL pattern
         result = await extract_metadata(link)
         assert result is None
 
 
 class TestSpotifyOembedParsing:
     @pytest.mark.asyncio
+    @respx.mock
     async def test_spotify_oembed_title_format(self):
         """Spotify oEmbed returns 'Song Name - Artist Name'"""
+        respx.get("https://open.spotify.com/oembed").mock(
+            return_value=httpx.Response(200, json={"title": "Song Name - Artist Name"})
+        )
         link = ParsedLink(
             platform=Platform.SPOTIFY,
             original_url="https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQ3",
             canonical_url="https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQ3",
             track_id="4uLU6hMCjMI75M1A2tKUQ3",
         )
-        # Without network, test the title parsing logic indirectly
-        # This tests that the function doesn't crash on network failure
         result = await extract_metadata(link)
-        assert result is None or result.title is not None
+        assert result is not None
+        assert result.title == "Song Name"
+        assert result.artist == "Artist Name"

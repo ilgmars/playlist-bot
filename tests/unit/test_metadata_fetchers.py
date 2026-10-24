@@ -18,6 +18,7 @@ from playlistbot.metadata import (
     fetch_apple_music_metadata,
     fetch_bandcamp_metadata,
     fetch_deezer_metadata,
+    fetch_deezer_oembed,
     fetch_napster_metadata,
     fetch_pandora_metadata,
     fetch_qobuz_metadata,
@@ -345,6 +346,50 @@ class TestDeezerFetcher:
         respx.get("https://api.deezer.com/track/123").mock(side_effect=httpx.ConnectError("x"))
         result = await fetch_deezer_metadata(self.URL)
         assert result.title == "Unknown (Deezer)"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_deezer_oembed_success(self):
+        respx.get("https://api.deezer.com/oembed").mock(
+            return_value=httpx.Response(200, json={"title": "Song", "author_name": "Artist"})
+        )
+        result = await fetch_deezer_oembed("https://www.deezer.com/album/987")
+        assert result is not None
+        assert result.title == "Song"
+        assert result.artist == "Artist"
+        assert result.source_platform == Platform.DEEZER
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_deezer_oembed_failures(self):
+        respx.get("https://api.deezer.com/oembed").mock(return_value=httpx.Response(404))
+        assert await fetch_deezer_oembed("https://www.deezer.com/album/987") is None
+        respx.get("https://api.deezer.com/oembed").mock(side_effect=httpx.ConnectError("x"))
+        assert await fetch_deezer_oembed("https://www.deezer.com/album/987") is None
+
+
+class TestRateLimitBackoff:
+    def test_parse_retry_after(self):
+        assert meta._parse_retry_after("2.5", 0, 0.5) == 2.5
+        assert meta._parse_retry_after("invalid", 1, 0.5) == 1.0
+        assert meta._parse_retry_after(None, 2, 0.5) == 2.0
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_http_get_retries_on_429_with_retry_after(self, monkeypatch):
+        sleep_mock = AsyncMock()
+        monkeypatch.setattr(meta.asyncio, "sleep", sleep_mock)
+        route = respx.get("https://api.deezer.com/track/999").mock(
+            side_effect=[
+                httpx.Response(429, headers={"Retry-After": "1"}),
+                httpx.Response(200, json={"title": "Retried Song", "artist": {"name": "Artist"}}),
+            ]
+        )
+        result = await fetch_deezer_metadata("https://www.deezer.com/track/999")
+        assert result is not None
+        assert result.title == "Retried Song"
+        assert route.call_count == 2
+        sleep_mock.assert_awaited_once_with(1.0)
 
 
 class TestTidalFetcher:

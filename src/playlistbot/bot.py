@@ -7,15 +7,21 @@ On each new song, it edits that message in place (no duplicate messages).
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
 import os
+from datetime import UTC, datetime
 from typing import Any
 
 import discord
-from discord import Message, TextChannel, Thread
+from discord import Interaction, Message, TextChannel, Thread
 from discord.ext import commands
 
 from .db import (
+    get_db,
+    get_playlists,
+    get_songs_newest_first,
+    get_stats,
     get_thread_state,
     init_db,
     insert_song,
@@ -27,7 +33,7 @@ from .db import (
 from .link_parser import ParsedLink, Platform, extract_links
 from .metadata import extract_metadata
 from .models import SongLink
-from .playlist import PlaylistManager
+from .playlist import PlaylistManager, generate_m3u
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +43,14 @@ intents.messages = True
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 playlist_mgr = PlaylistManager()
+
+
+def _get_allowed_channels() -> set[str]:
+    """Return configured allowed Discord channel IDs (empty set means all channels)."""
+    raw = os.environ.get("DISCORD_CHANNEL_IDS", "")
+    single = os.environ.get("DISCORD_CHANNEL_ID", "")
+    combined = f"{raw},{single}" if raw and single else (raw or single)
+    return {cid.strip() for cid in combined.split(",") if cid.strip()}
 
 
 def _build_card_embed(
@@ -49,7 +63,7 @@ def _build_card_embed(
     embed = discord.Embed(
         title="Latest song added",
         color=0x1DB954,
-        timestamp=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+        timestamp=datetime.now(UTC),
     )
     embed.add_field(name="Track", value=f"**{song_title}** — {song_artist}", inline=False)
     links_text = "\n".join(
@@ -93,44 +107,13 @@ async def _send_or_update_card(thread: Thread, embed: discord.Embed) -> Message:
     return msg
 
 
-@bot.event
-async def on_ready():
-    log.info("Playlist bot connected as %s", bot.user)
-
-
-@bot.event
-async def on_message(message: Message):
-    if message.author.bot:
-        return
-
-    # Don't process commands here — let the command processor handle "!" prefix
-    await bot.process_commands(message)
-
-    # Parse links from the message content
-    links = extract_links(message.content)
-    if not links:
-        return
-
-    # Check for duplicates
-    new_links = []
-    for link in links:
-        if await is_known_link(link.canonical_url):
-            continue
-        new_links.append(link)
-
-    if not new_links:
-        return
-
-    channel: TextChannel = message.channel  # type: ignore[assignment]
-
-    # Enrich metadata in parallel
-    metadata_tasks = [extract_metadata(link) for link in new_links]
-    metadatas = await asyncio.gather(*metadata_tasks)
-
-    # Create or reuse thread
-    thread = await _get_or_create_thread(channel, "playlist-track")
-
-    # Insert each new song and collect the result
+async def _save_and_sync_songs(
+    new_links: list[ParsedLink],
+    metadatas: list[Any],
+    message: Message,
+    channel_id: str,
+) -> list[dict[str, Any]]:
+    """Persist new songs in DB and sync them to channel playlists."""
     saved_songs: list[dict[str, Any]] = []
     for link, meta in zip(new_links, metadatas, strict=True):
         if meta is None:
@@ -145,22 +128,21 @@ async def on_message(message: Message):
             links=[_parsed_to_model(link, message)],
             added_by=str(message.author),
             message_id=str(message.id),
+            channel_id=channel_id,
         )
 
-        # Try to add to playlists
-        for platform in [Platform.YOUTUBE, Platform.SPOTIFY]:
-            playlist_id = await _get_playlist_id(str(channel.id), platform)
-            if playlist_id:
-                success = playlist_mgr.add_to_playlist(
-                    platform=platform,
-                    channel_id=str(channel.id),
-                    playlist_id=playlist_id,
-                    link=link,
-                )
-                if success:
-                    playlist_url = await _get_playlist_url(str(channel.id), platform)
-                    if playlist_url:
-                        await update_playlist_url(song_id, platform, playlist_url)
+        for platform in (Platform.YOUTUBE, Platform.SPOTIFY):
+            playlist_id = await _get_playlist_id(channel_id, platform)
+            if playlist_id and await asyncio.to_thread(
+                playlist_mgr.add_to_playlist,
+                platform=platform,
+                channel_id=channel_id,
+                playlist_id=playlist_id,
+                link=link,
+            ):
+                playlist_url = await _get_playlist_url(channel_id, platform)
+                if playlist_url:
+                    await update_playlist_url(song_id, platform, playlist_url)
 
         saved_songs.append(
             {
@@ -170,11 +152,43 @@ async def on_message(message: Message):
                 "links": [_link_to_dict(link, message)],
             }
         )
+    return saved_songs
 
+
+@bot.event
+async def on_ready():
+    tree = getattr(bot, "tree", None)
+    if tree is not None and getattr(bot, "application_id", None):
+        await tree.sync()
+    log.info("Playlist bot connected as %s", bot.user)
+
+
+@bot.event
+async def on_message(message: Message):
+    if message.author.bot:
+        return
+
+    allowed = _get_allowed_channels()
+    if allowed and str(message.channel.id) not in allowed:
+        return
+
+    await bot.process_commands(message)
+
+    links = extract_links(message.content)
+    if not links:
+        return
+
+    new_links = [link for link in links if not await is_known_link(link.canonical_url)]
+    if not new_links:
+        return
+
+    channel: TextChannel = message.channel  # type: ignore[assignment]
+    metadatas = await asyncio.gather(*(extract_metadata(link) for link in new_links))
+    thread = await _get_or_create_thread(channel, "playlist-track")
+    saved_songs = await _save_and_sync_songs(new_links, metadatas, message, str(channel.id))
     if not saved_songs:
         return
 
-    # Use the latest song for the card
     latest = saved_songs[-1]
     total = await _get_song_count()
     embed = _build_card_embed(
@@ -183,10 +197,7 @@ async def on_message(message: Message):
         all_links=latest["links"],
         total=total,
     )
-
     msg = await _send_or_update_card(thread, embed)
-
-    # Update thread state — single source of truth for last bot message
     await save_thread_state(
         thread_id=thread.id,
         channel_id=str(channel.id),
@@ -197,10 +208,90 @@ async def on_message(message: Message):
     )
 
 
+@bot.tree.command(name="playlist-create", description="Create or ensure playlists for this channel")
+async def playlist_create_cmd(interaction: Interaction) -> None:
+    """Slash command to manually trigger playlist creation for the current channel."""
+    channel_id = str(interaction.channel_id or "")
+    await _create_missing_playlists(channel_id)
+    playlists = await get_playlists(channel_id)
+    if not playlists:
+        await interaction.response.send_message(
+            f"Playlist setup triggered for channel `{channel_id}` (no API credentials configured).",
+            ephemeral=True,
+        )
+        return
+    lines = [
+        f"• **{p['platform'].capitalize()}**: {p['playlist_url'] or p['playlist_id']}"
+        for p in playlists
+    ]
+    await interaction.response.send_message(
+        "Playlists ready for this channel:\n" + "\n".join(lines),
+        ephemeral=True,
+    )
+
+
+@bot.tree.command(name="playlist-export", description="Export channel playlist as an .m3u file")
+async def playlist_export_cmd(interaction: Interaction) -> None:
+    """Slash command to export collected songs as an Extended M3U attachment."""
+    channel_id = str(interaction.channel_id) if interaction.channel_id else None
+    songs = await get_songs_newest_first(limit=500, channel_id=channel_id)
+    if not songs:
+        songs = await get_songs_newest_first(limit=500)
+    m3u_content = generate_m3u(songs, title=f"Discord Playlist #{channel_id or 'all'}")
+    buf = io.BytesIO(m3u_content.encode("utf-8"))
+    await interaction.response.send_message(
+        f"Exported **{len(songs)}** tracks as `.m3u`:",
+        file=discord.File(fp=buf, filename="playlist.m3u"),
+        ephemeral=True,
+    )
+
+
+@bot.tree.command(name="playlist-links", description="Show playlist links and recent tracks")
+async def playlist_links_cmd(interaction: Interaction) -> None:
+    """Slash command to display current playlist URLs and latest shared tracks."""
+    channel_id = str(interaction.channel_id) if interaction.channel_id else None
+    playlists = await get_playlists(channel_id)
+    songs = await get_songs_newest_first(limit=5, channel_id=channel_id)
+    if not songs and channel_id:
+        songs = await get_songs_newest_first(limit=5)
+
+    parts: list[str] = []
+    if playlists:
+        parts.append("**Playlists:**")
+        for pl in playlists:
+            parts.append(f"• {pl['platform'].capitalize()}: {pl['playlist_url']}")
+    if songs:
+        parts.append("\n**Recent Tracks:**")
+        for song in songs:
+            url = song["links"][0]["original_url"] if song.get("links") else ""
+            parts.append(f"• **{song['title']}** — {song['artist']} ({url})")
+    if not parts:
+        parts.append("No playlists or songs recorded yet.")
+    await interaction.response.send_message("\n".join(parts), ephemeral=True)
+
+
+@bot.tree.command(name="playlist-stats", description="Show song count and platform breakdown")
+async def playlist_stats_cmd(interaction: Interaction) -> None:
+    """Slash command to display song, link, platform, and contributor statistics."""
+    channel_id = str(interaction.channel_id) if interaction.channel_id else None
+    stats = await get_stats(channel_id=channel_id)
+    if stats["total_songs"] == 0 and channel_id:
+        stats = await get_stats(channel_id=None)
+
+    breakdown = ", ".join(f"{plat.capitalize()}: {cnt}" for plat, cnt in stats["platforms"].items())
+    contrib_count = len(stats["contributors"]) if isinstance(stats["contributors"], dict) else 0
+    msg = (
+        f"**Playlist Stats**\n"
+        f"• Songs: **{stats['total_songs']}**\n"
+        f"• Links: **{stats['total_links']}**\n"
+        f"• Contributors: **{contrib_count}**\n"
+        f"• Platforms: {breakdown or 'None'}"
+    )
+    await interaction.response.send_message(msg, ephemeral=True)
+
+
 def _parsed_to_model(link: ParsedLink, message: Message) -> SongLink:
     """Convert a ParsedLink to the DB SongLink model."""
-    from .models import SongLink
-
     return SongLink(
         platform=link.platform,
         original_url=link.original_url,
@@ -224,7 +315,7 @@ def _link_to_dict(link: ParsedLink, message: Message) -> dict:
 
 async def _get_playlist_id(channel_id: str, platform: Platform) -> str | None:
     """Check our DB for an existing playlist ID for this channel/platform."""
-    async with __import__("playlistbot.db", fromlist=["get_db"]).get_db() as db:
+    async with get_db() as db:
         rows = await db.execute_fetchall(
             "SELECT playlist_id FROM playlists WHERE channel_id = ? AND platform = ?",
             (channel_id, platform.value),
@@ -251,7 +342,7 @@ async def _get_playlist_id(channel_id: str, platform: Platform) -> str | None:
 
 
 async def _get_playlist_url(channel_id: str, platform: Platform) -> str | None:
-    async with __import__("playlistbot.db", fromlist=["get_db"]).get_db() as db:
+    async with get_db() as db:
         rows = await db.execute_fetchall(
             "SELECT playlist_url FROM playlists WHERE channel_id = ? AND platform = ?",
             (channel_id, platform.value),
@@ -260,13 +351,15 @@ async def _get_playlist_url(channel_id: str, platform: Platform) -> str | None:
 
 
 async def _get_song_count() -> int:
-    async with __import__("playlistbot.db", fromlist=["get_db"]).get_db() as db:
+    async with get_db() as db:
         rows = await db.execute_fetchall("SELECT COUNT(*) as c FROM songs", ())
         return rows[0]["c"] if rows else 0
 
 
 async def _create_missing_playlists(channel_id: str) -> None:
     """Ensure playlists exist on each platform for this channel."""
+    if not channel_id:
+        return
     for platform in (Platform.YOUTUBE, Platform.SPOTIFY):
         pid = await _get_playlist_id(channel_id, platform)
         if pid:
@@ -289,4 +382,7 @@ def run_bot(token: str) -> None:
     loop.run_until_complete(init_db())
     loop.run_until_complete(_create_missing_playlists(channel_id))
     loop.run_until_complete(_create_missing_playlists(guild_id))
+    for extra_id in os.environ.get("DISCORD_CHANNEL_IDS", "").split(","):
+        if extra_id.strip():
+            loop.run_until_complete(_create_missing_playlists(extra_id.strip()))
     bot.run(token)

@@ -53,6 +53,48 @@ _yt_dlp_opts: dict[str, Any] = {
 }
 
 
+def _parse_retry_after(header_val: str | None, attempt: int, base_delay: float = 0.5) -> float:
+    """Compute retry delay from Retry-After header or exponential backoff."""
+    if header_val is not None:
+        try:
+            return max(0.0, float(header_val))
+        except ValueError:
+            pass
+    return float(base_delay * (2**attempt))
+
+
+async def _http_get_with_backoff(
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    params: dict[str, str] | None = None,
+    follow_redirects: bool = False,
+    max_retries: int = 3,
+    base_delay: float = 0.5,
+) -> httpx.Response:
+    """Perform an HTTP GET with exponential backoff on 429 Too Many Requests."""
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(
+            url,
+            headers=headers,
+            params=params,
+            follow_redirects=follow_redirects,
+        )
+        for attempt in range(max_retries - 1):
+            if resp.status_code != 429:
+                break
+            delay = _parse_retry_after(resp.headers.get("Retry-After"), attempt, base_delay)
+            log.warning("Rate limited (429) on %s, retrying in %.2fs", url, delay)
+            await asyncio.sleep(delay)
+            resp = await client.get(
+                url,
+                headers=headers,
+                params=params,
+                follow_redirects=follow_redirects,
+            )
+        return resp
+
+
 async def fetch_youtube_metadata(url: str) -> TrackInfo | None:
     """Use yt-dlp in a background thread to extract metadata."""
 
@@ -65,6 +107,8 @@ async def fetch_youtube_metadata(url: str) -> TrackInfo | None:
     except Exception as e:
         log.warning("yt-dlp failed for %s: %s", url, e)
         return None
+    if info is None:
+        return None
 
     return TrackInfo(
         title=info.get("title", "Unknown"),
@@ -76,15 +120,30 @@ async def fetch_youtube_metadata(url: str) -> TrackInfo | None:
     )
 
 
+async def _fetch_spotify_api(track_id: str, spotify_url: str, bearer: str) -> TrackInfo | None:
+    """Fetch rich Spotify metadata via the Web API using a bearer credential."""
+    headers = {"Authorization": f"Bearer {bearer}"}
+    resp = await _http_get_with_backoff(f"{_SPOTIFY_API_BASE}/tracks/{track_id}", headers=headers)
+    if resp.status_code != 200:
+        return None
+    data: dict[str, Any] = resp.json()
+    artists = [a["name"] for a in data.get("artists", [])]
+    return TrackInfo(
+        title=data.get("name", "Unknown"),
+        artist=", ".join(artists) if artists else "Unknown",
+        album=data.get("album", {}).get("name"),
+        duration_ms=data.get("duration_ms"),
+        isrc=data.get("external_ids", {}).get("isrc"),
+        source_url=spotify_url,
+        source_platform=Platform.SPOTIFY,
+    )
+
+
 async def fetch_spotify_metadata(
     url: str,
-    token: str | None = None,
+    token: str | None = None,  # noqa: S107 - optional OAuth bearer
 ) -> TrackInfo | None:
-    """Fetch Spotify metadata from the track URL.
-
-    Uses the public oEmbed endpoint (no auth needed) as a fallback,
-    or the full API with a bearer token for richer data.
-    """
+    """Fetch Spotify metadata from the track URL."""
     match = re.search(r"/track/([A-Za-z0-9]{22})", url)
     if not match:
         return None
@@ -92,30 +151,14 @@ async def fetch_spotify_metadata(
     track_id = match.group(1)
     spotify_url = f"https://open.spotify.com/track/{track_id}"
 
-    if token:
-        headers = {"Authorization": f"Bearer {token}"}
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{_SPOTIFY_API_BASE}/tracks/{track_id}",
-                headers=headers,
-            )
-        if resp.status_code == 200:
-            data: dict[str, Any] = resp.json()
-            artists = [a["name"] for a in data.get("artists", [])]
-            return TrackInfo(
-                title=data.get("name", "Unknown"),
-                artist=", ".join(artists) if artists else "Unknown",
-                album=data.get("album", {}).get("name"),
-                duration_ms=data.get("duration_ms"),
-                isrc=data.get("external_ids", {}).get("isrc"),
-                source_url=spotify_url,
-                source_platform=Platform.SPOTIFY,
-            )
+    if token:  # bearer credential provided
+        info = await _fetch_spotify_api(track_id, spotify_url, token)
+        if info is not None:
+            return info
 
     # Fallback: scrape oEmbed for basic info
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(f"https://open.spotify.com/oembed?url={spotify_url}")
+        resp = await _http_get_with_backoff(f"https://open.spotify.com/oembed?url={spotify_url}")
         if resp.status_code == 200:
             data = resp.json()
             title = data.get("title", "")
@@ -147,8 +190,7 @@ async def fetch_apple_music_metadata(url: str) -> TrackInfo | None:
         )
     }
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, headers=headers, follow_redirects=True)
+        resp = await _http_get_with_backoff(url, headers=headers, follow_redirects=True)
         if resp.status_code != 200:
             return None
         text = resp.text
@@ -188,11 +230,10 @@ async def fetch_apple_music_metadata(url: str) -> TrackInfo | None:
 async def fetch_soundcloud_metadata(url: str) -> TrackInfo | None:
     """Use SoundCloud's oEmbed endpoint."""
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(
-                "https://soundcloud.com/oembed",
-                params={"format": "json", "url": url},
-            )
+        resp = await _http_get_with_backoff(
+            "https://soundcloud.com/oembed",
+            params={"format": "json", "url": url},
+        )
         if resp.status_code == 200:
             data = resp.json()
             title = data.get("title", "")
@@ -221,8 +262,7 @@ async def fetch_bandcamp_metadata(url: str) -> TrackInfo | None:
     """Scrape Bandcamp page for track metadata."""
     headers = {"User-Agent": "Mozilla/5.0 (compatible; PlaylistBot/0.1)"}
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, headers=headers)
+        resp = await _http_get_with_backoff(url, headers=headers)
         if resp.status_code != 200:
             return None
         text = resp.text
@@ -251,15 +291,12 @@ async def fetch_bandcamp_metadata(url: str) -> TrackInfo | None:
 
 async def fetch_deezer_metadata(url: str) -> TrackInfo | None:
     """Use Deezer's public API (no auth needed for basic track info)."""
-    import re
-
     m = re.search(r"/track/(\d+)", url)
     if not m:
         return None
     track_id = m.group(1)
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(f"https://api.deezer.com/track/{track_id}")
+        resp = await _http_get_with_backoff(f"https://api.deezer.com/track/{track_id}")
         if resp.status_code == 200:
             data = resp.json()
             return TrackInfo(
@@ -281,12 +318,31 @@ async def fetch_deezer_metadata(url: str) -> TrackInfo | None:
     )
 
 
+async def fetch_deezer_oembed(url: str) -> TrackInfo | None:
+    """Fetch Deezer metadata via public oEmbed endpoint."""
+    try:
+        resp = await _http_get_with_backoff(
+            "https://api.deezer.com/oembed",
+            params={"url": url, "format": "json"},
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return TrackInfo(
+                title=data.get("title", "Unknown"),
+                artist=data.get("author_name", "Unknown"),
+                source_url=url,
+                source_platform=Platform.DEEZER,
+            )
+    except Exception as e:
+        log.debug("Deezer oEmbed failed: %s", e)
+    return None
+
+
 async def fetch_tidal_metadata(url: str) -> TrackInfo | None:
     """Tidal requires OAuth; fallback to title scrape."""
     headers = {"User-Agent": "Mozilla/5.0 (compatible; PlaylistBot/0.1)"}
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, headers=headers, follow_redirects=True)
+        resp = await _http_get_with_backoff(url, headers=headers, follow_redirects=True)
         if resp.status_code != 200:
             return None
         text = resp.text

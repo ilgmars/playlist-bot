@@ -55,7 +55,7 @@ _PATTERNS: list[tuple[Platform, re.Pattern[str], str]] = [
         Platform.YOUTUBE_MUSIC,
         re.compile(
             r"https?://music\.youtube\.com/watch\?v=([A-Za-z0-9_-]{11})"
-            r"|https?://(?:www\.)?youtube\.com/watch\?.*list=(RD)?[A-Za-z0-9_-]+.*v=([A-Za-z0-9_-]{11})"
+            r"|https?://(?:www\.)?youtube\.com/watch\?.*list=(?:RD)?[A-Za-z0-9_-]+.*v=([A-Za-z0-9_-]{11})"
         ),
         "https://music.youtube.com/watch?v={id}",
     ),
@@ -75,7 +75,7 @@ _PATTERNS: list[tuple[Platform, re.Pattern[str], str]] = [
         re.compile(
             r"https?://music\.apple\.com/(?:[^/]+/)?"
             r"(?:album|artist|song)/[^/]+/([A-Za-z0-9]+)\?i=([A-Za-z0-9.-]+)"
-            r"|https?://music\.apple\.com/(?:[^/]+/)?song/([A-Za-z0-9.-]+)"
+            r"|https?://music\.apple\.com/(?:[^/]+/)?song/(?:[^/?#]+/)?([A-Za-z0-9.-]+)"
         ),
         "https://music.apple.com/song/{id}",
     ),
